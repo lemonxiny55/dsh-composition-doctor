@@ -1,0 +1,11 @@
+{
+  "name": "redaction-profile",
+  "dependencies": {
+    "example": "2.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.1.0-rc.5 <0.2.0",
+    "@deepseek-ai/cordis": ">=4 <5"
+  },
+  "os": ["win32", "linux"]
+}
