@@ -1,0 +1,5 @@
+plugins:
+  - id: shared-row
+    name: First declaration
+  - id: shared-row
+    name: Second declaration
