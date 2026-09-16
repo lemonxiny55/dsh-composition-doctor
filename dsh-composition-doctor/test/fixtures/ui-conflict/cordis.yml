@@ -1,5 +1,0 @@
-ui:
-  root-slot: settings
-  sidebar: tools
-  layout: main
-  web-route: /doctor

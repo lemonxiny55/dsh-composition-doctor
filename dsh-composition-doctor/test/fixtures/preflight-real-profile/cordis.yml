@@ -1,5 +1,0 @@
-plugins:
-  - id: preflight-plugin
-    name: Preflight Plugin
-    config:
-      apiKey: should-never-be-copied-in-plain-text

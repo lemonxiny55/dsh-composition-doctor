@@ -1,7 +1,0 @@
-plugins:
-  - id: safe-plugin
-    name: example
-    config:
-      apiKey: do-not-leak
-      nested:
-        token: do-not-leak
