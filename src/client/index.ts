@@ -1,4 +1,6 @@
-import { createReportView } from './report-view.js'
+import { createElement } from 'react'
+
+import { ReportView } from './report-view.js'
 
 export const name = 'dsh-composition-doctor'
 
@@ -30,7 +32,7 @@ export interface ClientRegistration {
 export const registration: ClientRegistration = Object.freeze({
   id: name,
   actions: ['export-json', 'export-markdown'] as const,
-  component: () => createReportView()
+  component: () => createElement(ReportView, { translate: (key: string) => key })
 })
 
 export interface ClientApply {
@@ -49,7 +51,7 @@ export const apply: ClientApply = Object.assign(
     const disposeSlot = ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
       name: 'settings.plugins.tab', id: registration.id, order: 70,
       locale: 'dshCompositionDoctor', label: () => t('title')
-    }, () => createReportView(undefined, t)))
+    }, () => createElement(ReportView, { translate: t })))
     return () => {
       if (typeof disposeSlot === 'function') disposeSlot()
       if (typeof disposeLocale === 'function') disposeLocale()

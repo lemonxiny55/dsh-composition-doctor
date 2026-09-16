@@ -57,5 +57,13 @@ export async function readProfile({ profileDir }: { profileDir: string }): Promi
     }
   }
 
-  return { profileDir: resolvedRoot, files }
+  return {
+    profileDir: resolvedRoot,
+    files,
+    metadataCoverage: {
+      mode: 'allow-listed-root-metadata',
+      scannedFiles: files.map((file) => file.relativePath).sort(),
+      unscannedSurfaces: ['nested plugin manifests and bundle metadata', 'environment files and values', 'private keys, tokens, sessions, and workspace source files']
+    }
+  }
 }

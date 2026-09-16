@@ -1,8 +1,22 @@
+import { createElement, useEffect, useRef } from 'react'
+
 import type { AnalysisReport, Diagnostic, Severity } from '../core/types.js'
 import { renderMarkdown } from '../reports/markdown.js'
 
 export const clientReportPath = '/dsh-composition-doctor/reports/latest'
+export const downloadRevokeDelayMs = 1000
 export type Translator = (key: string) => string
+
+export interface DownloadHooks {
+  createObjectURL(blob: Blob): string
+  revokeObjectURL(url: string): void
+  schedule(callback: () => void, delay: number): unknown
+}
+
+export interface ExportDependencies {
+  fetcher?: typeof fetch
+  download?: typeof download
+}
 
 export interface ConflictNode {
   id: string
@@ -76,12 +90,36 @@ async function fetchReport(fetcher: typeof fetch = globalThis.fetch): Promise<An
   return value
 }
 
-function download(document: Document, content: string, filename: string, mime: string): void {
+const browserDownloadHooks: DownloadHooks = {
+  createObjectURL: (blob) => URL.createObjectURL(blob),
+  revokeObjectURL: (url) => URL.revokeObjectURL(url),
+  schedule: (callback, delay) => globalThis.setTimeout(callback, delay)
+}
+
+/** Create a local browser download without sending report data anywhere. */
+export function download(document: Document, content: string, filename: string, mime: string, hooks: DownloadHooks = browserDownloadHooks): void {
+  const blob = new Blob([content], { type: mime })
   const link = document.createElement('a')
-  link.href = URL.createObjectURL(new Blob([content], { type: mime }))
+  const objectUrl = hooks.createObjectURL(blob)
+  link.hidden = true
+  link.href = objectUrl
   link.download = filename
-  link.click()
-  URL.revokeObjectURL(link.href)
+  document.body.append(link)
+  try {
+    link.click()
+  } finally {
+    link.remove()
+    hooks.schedule(() => hooks.revokeObjectURL(objectUrl), downloadRevokeDelayMs)
+  }
+}
+
+export async function exportReport(document: Document, format: 'json' | 'markdown', dependencies: ExportDependencies = {}): Promise<void> {
+  const report = await fetchReport(dependencies.fetcher)
+  if (format === 'json') {
+    ;(dependencies.download ?? download)(document, `${JSON.stringify(report, null, 2)}\n`, 'dsh-composition-doctor-report.json', 'application/json')
+    return
+  }
+  ;(dependencies.download ?? download)(document, renderMarkdown(report), 'dsh-composition-doctor-report.md', 'text/markdown')
 }
 
 /**
@@ -90,7 +128,7 @@ function download(document: Document, content: string, filename: string, mime: s
  */
 export function createReportView(document: Document = globalThis.document, translate: Translator = (key) => ({
   title: 'DSH Composition Doctor', exportJson: 'Export JSON', exportMarkdown: 'Export Markdown', loading: 'Loading the latest local report…', unavailable: 'The latest report is unavailable.'
-}[key] ?? key)): HTMLElement {
+}[key] ?? key), dependencies: ExportDependencies = {}): HTMLElement {
   const root = document.createElement('section')
   root.dataset.plugin = nameForDom
   root.setAttribute('aria-labelledby', 'dsh-composition-doctor-title')
@@ -103,25 +141,56 @@ export function createReportView(document: Document = globalThis.document, trans
   root.append(status)
   const actions = document.createElement('p')
   actions.append(
-    button(document, translate('exportJson'), () => { void fetchReport().then((report) => download(document, `${JSON.stringify(report, null, 2)}\n`, 'dsh-composition-doctor-report.json', 'application/json')).catch(() => undefined) }),
+    button(document, translate('exportJson'), () => { void exportReport(document, 'json', dependencies).catch(() => undefined) }),
     text(document, ' '),
-    button(document, translate('exportMarkdown'), () => { void fetchReport().then((report) => download(document, renderMarkdown(report), 'dsh-composition-doctor-report.md', 'text/markdown')).catch(() => undefined) })
+    button(document, translate('exportMarkdown'), () => { void exportReport(document, 'markdown', dependencies).catch(() => undefined) })
   )
   root.append(actions)
   void fetchReport().then((report) => {
     const model = toReportViewModel(report)
-    status.textContent = `Diagnostics: ${model.counts.error} error, ${model.counts.warning} warning, ${model.counts.info} info. Conflict graph: ${model.graph.nodes.length} evidence nodes.`
+    status.textContent = `Generated: ${report.generatedAt}. Profile: ${report.profileDir}. Evidence mode: ${report.evidenceMode}. Diagnostics: ${model.counts.error} error, ${model.counts.warning} warning, ${model.counts.info} info.`
     const list = document.createElement('ul')
     for (const diagnostic of report.diagnostics) {
       const item = document.createElement('li')
-      item.textContent = `[${diagnostic.severity}] ${diagnostic.title}`
+      const details = document.createElement('details')
+      const summary = document.createElement('summary')
+      summary.textContent = `[${diagnostic.severity}] ${diagnostic.title}`
+      details.append(summary)
+      const explanation = document.createElement('p')
+      explanation.textContent = diagnostic.explanation
+      const evidence = document.createElement('pre')
+      evidence.textContent = diagnostic.evidence.map((entry) => `${entry.source}: ${entry.detail}`).join('\n') || 'No concrete evidence.'
+      const remediation = document.createElement('p')
+      remediation.textContent = `Remediation: ${diagnostic.remediation}`
+      details.append(explanation, evidence, remediation)
+      item.append(details)
       list.append(item)
     }
     root.append(list)
-  }).catch((error: unknown) => {
-    status.textContent = error instanceof Error ? error.message : translate('unavailable')
+  }).catch(() => {
+    status.textContent = translate('unavailable')
   })
   return root
+}
+
+/**
+ * DSH settings slots are rendered by React. Keep the browser-native report
+ * view as the implementation detail, but mount it through a React component
+ * rather than returning an HTMLElement directly to the slot renderer.
+ */
+export function ReportView({ translate }: { translate: Translator }): unknown {
+  const host = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const container = host.current
+    if (container === null) return
+    const view = createReportView(globalThis.document, translate)
+    container.replaceChildren(view)
+    return () => {
+      view.remove()
+      container.replaceChildren()
+    }
+  }, [translate])
+  return createElement('div', { className: 'dsh-composition-doctor-report-view', ref: host })
 }
 
 const nameForDom = 'dsh-composition-doctor'

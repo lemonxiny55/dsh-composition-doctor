@@ -1,4 +1,11 @@
 import { describe, expect, test, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
+
+vi.mock('react', () => ({
+  createElement: (type: unknown, props?: Record<string, unknown> | null, ...children: unknown[]) => ({ type, props, children }),
+  useEffect: () => undefined,
+  useRef: <T>(initial: T) => ({ current: initial })
+}))
 
 import { apply as applyHost, latestReportPath } from '../src/plugin/index.js'
 import { apply as applyClient, clientRegistration } from '../src/client/index.js'
@@ -29,6 +36,13 @@ describe('host plugin contract', () => {
 })
 
 describe('client plugin contract', () => {
+  test('exposes package metadata for the DSH client-module scanner', async () => {
+    const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
+      exports: Record<string, string>
+    }
+    expect(manifest.exports['./package.json']).toBe('./package.json')
+  })
+
   test('registers the read-only settings section and export actions', () => {
     expect(clientRegistration().id).toBe('dsh-composition-doctor')
     expect(clientRegistration().actions).toEqual(['export-json', 'export-markdown'])

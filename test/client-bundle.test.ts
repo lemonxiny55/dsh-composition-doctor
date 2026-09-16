@@ -7,5 +7,6 @@ describe('DSH client bundle', () => {
     expect(bundle).toContain('window.__ModuleLoader__.load')
     expect(bundle).toContain('id: "dsh-composition-doctor"')
     expect(bundle).toContain('factory: (require)')
+    expect(bundle).toContain('require("react")')
   })
 })

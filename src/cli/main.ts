@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 import { resolveComposition } from '../core/composition-adapter.js'
 import { diffSnapshots, renderSnapshotDiffMarkdown } from '../core/diff.js'
@@ -9,6 +9,7 @@ import { createSnapshot, type Snapshot } from '../core/snapshot.js'
 import { analyseComposition } from '../core/rules.js'
 import { renderJson } from '../reports/json.js'
 import { renderMarkdown } from '../reports/markdown.js'
+import { resolveReportDirectory } from '../reports/location.js'
 import { runPreflight } from '../core/preflight.js'
 
 export interface CliIo {
@@ -39,15 +40,21 @@ function invalid(io: CliIo, message: string): number {
 async function scan(argv: readonly string[], io: CliIo): Promise<number> {
   const profile = option(argv, '--profile')
   const output = option(argv, '--output')
+  const configuredReportDir = option(argv, '--report-dir')
+  const publish = argv.includes('--publish') || configuredReportDir !== undefined
   const format = option(argv, '--format') ?? 'json'
   if (profile === undefined || output === undefined) return invalid(io, 'scan requires --profile and --output')
   if (format !== 'json' && format !== 'markdown' && format !== 'both') return invalid(io, '--format must be json, markdown, or both')
   const report = analyseComposition(await resolveComposition(await readProfile({ profileDir: resolve(profile) })))
   const destination = resolve(output)
-  await mkdir(destination, { recursive: true })
-  if (format === 'json' || format === 'both') await writeFile(resolve(destination, 'report.json'), renderJson(report), 'utf8')
-  if (format === 'markdown' || format === 'both') await writeFile(resolve(destination, 'report.md'), renderMarkdown(report), 'utf8')
+  const destinations = [destination, ...(publish ? [resolveReportDirectory(configuredReportDir)] : [])]
+  for (const directory of destinations) {
+    await mkdir(directory, { recursive: true })
+    if (format === 'json' || format === 'both') await writeFile(resolve(directory, 'report.json'), renderJson(report), 'utf8')
+    if (format === 'markdown' || format === 'both') await writeFile(resolve(directory, 'report.md'), renderMarkdown(report), 'utf8')
+  }
   io.write(`Wrote reports to ${destination}`)
+  if (publish) io.write(`Published reports to ${destinations[1]}`)
   return 0
 }
 
@@ -56,6 +63,7 @@ async function snapshot(argv: readonly string[], io: CliIo): Promise<number> {
   const output = option(argv, '--output')
   if (profile === undefined || output === undefined) return invalid(io, 'snapshot requires --profile and --output')
   const destination = resolve(output)
+  await mkdir(dirname(destination), { recursive: true })
   await writeFile(destination, `${JSON.stringify(await createSnapshot(await readProfile({ profileDir: resolve(profile) })), null, 2)}\n`, 'utf8')
   io.write(`Wrote snapshot to ${destination}`)
   return 0
@@ -97,7 +105,7 @@ async function preflight(argv: readonly string[], io: CliIo): Promise<number> {
   if (output === undefined) io.write(rendered)
   else {
     const destination = resolve(output)
-    await mkdir(resolve(destination, '..'), { recursive: true })
+    await mkdir(dirname(destination), { recursive: true })
     await writeFile(destination, rendered, 'utf8')
     io.write(`Wrote preflight report to ${destination}`)
   }

@@ -16,6 +16,7 @@ const result = await build({
   format: 'cjs',
   platform: 'browser',
   target: 'es2022',
+  external: ['react'],
   write: false,
   legalComments: 'none'
 })

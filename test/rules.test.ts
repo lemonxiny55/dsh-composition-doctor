@@ -142,7 +142,9 @@ describe('report renderers', () => {
     const markdown = renderMarkdown(report)
 
     expect(JSON.parse(json)).toMatchObject({ schemaVersion: 1 })
+    expect(JSON.parse(json)).toMatchObject({ evidenceMode: 'static' })
     expect(markdown).toContain('a.yml')
+    expect(markdown).toContain('Evidence mode: static')
     expect(markdown).toContain('Remediation:')
   })
 })

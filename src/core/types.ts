@@ -20,6 +20,13 @@ export interface Diagnostic {
 }
 
 export type EvidenceKind = 'static' | 'resolved'
+export type EvidenceMode = 'static' | 'resolved' | 'mixed'
+
+export interface MetadataCoverage {
+  mode: 'allow-listed-root-metadata'
+  scannedFiles: readonly string[]
+  unscannedSurfaces: readonly string[]
+}
 
 export interface ProfileFile {
   relativePath: string
@@ -30,6 +37,7 @@ export interface ProfileFile {
 export interface ProfileInput {
   profileDir: string
   files: readonly ProfileFile[]
+  metadataCoverage: MetadataCoverage
 }
 
 export interface CompositionRow {
@@ -99,6 +107,7 @@ export interface PlatformRequirement {
 
 export interface CompositionModel {
   profileDir: string
+  metadataCoverage?: MetadataCoverage
   rows: readonly CompositionRow[]
   adapterDiagnostics: readonly Diagnostic[]
   uiClaims?: readonly UiClaim[]
@@ -108,12 +117,16 @@ export interface CompositionModel {
   peerRequirements?: readonly PeerRequirement[]
   bundles?: readonly BundleFact[]
   platforms?: readonly PlatformRequirement[]
+  evidenceMode?: EvidenceMode
 }
 
 export interface AnalysisReport {
   schemaVersion: 1
   generatedAt: string
   profileDir: string
+  evidenceMode: EvidenceMode
+  metadataCoverage?: MetadataCoverage
+  unverifiedFindings: readonly string[]
   diagnostics: readonly Diagnostic[]
 }
 

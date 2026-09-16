@@ -2,6 +2,8 @@ import { lstat, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import z from '@deepseek-ai/schemastery'
 
+import { defaultReportDirectory, resolveReportDirectory } from '../reports/location.js'
+
 export const name = 'dsh-composition-doctor'
 /** Public Cordis service dependency supplied by dsh-host-webserver. */
 export const inject = ['webServer'] as const
@@ -16,7 +18,7 @@ export interface DoctorConfig {
   reportDir?: string
 }
 
-export const Config = z.object({ reportDir: z.string() })
+export const Config = z.object({ reportDir: z.string().default(defaultReportDirectory) })
 
 interface WebRequest {
   method?: string
@@ -49,7 +51,7 @@ export interface DoctorContext {
 export const latestReportPath = '/dsh-composition-doctor/reports/latest'
 
 function reportDirectory(config: DoctorConfig): string {
-  return resolve(config.reportDir ?? '.dsh-composition-doctor/reports')
+  return resolveReportDirectory(config.reportDir)
 }
 
 function send(response: WebResponse, status: number, body: string): void {

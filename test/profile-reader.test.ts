@@ -32,6 +32,8 @@ describe('readProfile', () => {
     expect(profile.files.map((file) => file.relativePath).sort()).toEqual(['cordis.yml', 'package.json'])
     expect(profile.files.map((file) => file.text).join('\n')).not.toContain('do-not-leak')
     expect(profile.files.every((file) => /^[a-f0-9]{64}$/.test(file.sha256))).toBe(true)
+    expect(profile.metadataCoverage).toMatchObject({ mode: 'allow-listed-root-metadata' })
+    expect(profile.metadataCoverage.unscannedSurfaces).toContain('nested plugin manifests and bundle metadata')
   })
 
   it('skips an allow-listed symlink that resolves outside the profile root', async (context) => {
@@ -140,6 +142,7 @@ describe('resolveComposition', () => {
     expect(providerRow.config.nested.enabled).toBe(true)
     expect(providerRow.evidenceKind).toBe('static')
     expect(composition.adapterDiagnostics).toEqual([])
+    expect(composition.evidenceMode).toBe('resolved')
   })
 
   it('accepts provider rows with function values while detaching plain nested config', async () => {

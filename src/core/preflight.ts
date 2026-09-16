@@ -65,6 +65,11 @@ function safeCandidate(value: string): boolean {
   return packageNamePattern.test(name) && versionPattern.test(version)
 }
 
+function candidateParts(value: string): { name: string; version: string } {
+  const at = value.lastIndexOf('@')
+  return { name: value.slice(0, at), version: value.slice(at + 1) }
+}
+
 function safeMetadataText(relativePath: string, text: string): string | undefined {
   try {
     if (relativePath === 'package.json') {
@@ -80,7 +85,8 @@ function safeMetadataText(relativePath: string, text: string): string | undefine
   return undefined
 }
 
-async function prepareIsolatedProfile(input: ProfileInput, directory: string, evidenceItems: Evidence[]): Promise<void> {
+async function prepareIsolatedProfile(input: ProfileInput, directory: string, candidates: readonly string[], evidenceItems: Evidence[]): Promise<void> {
+  let wroteManifest = false
   for (const file of input.files) {
     if (lockFiles.has(file.relativePath)) {
       evidenceItems.push(evidence(file.relativePath, 'lockfile-not-copied', 'Lockfile content is excluded from the rehearsal directory; its source hash remains available in snapshots.'))
@@ -91,7 +97,27 @@ async function prepareIsolatedProfile(input: ProfileInput, directory: string, ev
       evidenceItems.push(evidence(file.relativePath, 'metadata-not-copied', 'Metadata was not copied because it could not be safely parsed.'))
       continue
     }
+    if (file.relativePath === 'package.json' && candidates.length > 0) {
+      const manifest = JSON.parse(safeText) as Record<string, unknown>
+      const dependencies = manifest.dependencies !== null && typeof manifest.dependencies === 'object' ? manifest.dependencies as Record<string, unknown> : {}
+      for (const candidate of candidates) {
+        const { name, version } = candidateParts(candidate)
+        dependencies[name] = version
+      }
+      manifest.dependencies = dependencies
+      await writeFile(join(directory, file.relativePath), `${JSON.stringify(manifest, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
+      wroteManifest = true
+      continue
+    }
     await writeFile(join(directory, file.relativePath), safeText, { encoding: 'utf8', flag: 'wx' })
+    if (file.relativePath === 'package.json') wroteManifest = true
+  }
+  if (!wroteManifest && candidates.length > 0) {
+    const dependencies = Object.fromEntries(candidates.map((candidate) => {
+      const { name, version } = candidateParts(candidate)
+      return [name, version]
+    }))
+    await writeFile(join(directory, 'package.json'), `${JSON.stringify({ name: 'dsh-doctor-isolated-profile', private: true, dependencies }, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
   }
 }
 
@@ -150,11 +176,18 @@ export async function runPreflight(options: PreflightOptions): Promise<Preflight
     const candidates = options.candidates.filter(safeCandidate)
     evidenceItems.push(evidence(profileDir, 'target-dsh', `Rehearsal target is DSH ${options.targetDsh}.`))
     evidenceItems.push(evidence(profileDir, 'candidate-plugins', `${candidates.length} validated candidate plugin reference(s) supplied; values are not copied into the real profile.`))
+    for (const candidate of candidates) {
+      evidenceItems.push(evidence(profileDir, 'candidate-accepted', `${candidate} was accepted as an exact package@version reference.`))
+      evidenceItems.push(evidence(profileDir, 'candidate-metadata-inspected', `${candidate} was injected into the isolated package metadata and included in static manifest analysis.`))
+      evidenceItems.push(evidence(profileDir, 'candidate-package-not-installed', `${candidate} was not downloaded or installed.`))
+      evidenceItems.push(evidence(profileDir, 'candidate-runtime-unverified', `${candidate} was not loaded, so runtime compatibility is unverified.`, 'warning'))
+    }
+    if (candidates.length > 0) extraWarning = true
     evidenceItems.push(evidence(profileDir, 'network-policy', options.online ? 'Online mode was requested, but this adapter performs no network operation.' : 'Offline mode enforced; no network operation was attempted.'))
     if (options.online) extraWarning = true
 
     tempDirectory = await mkdtemp(join(tmpdir(), 'dsh-doctor-'))
-    await prepareIsolatedProfile(input, tempDirectory, evidenceItems)
+    await prepareIsolatedProfile(input, tempDirectory, candidates, evidenceItems)
     evidenceItems.push(evidence(tempDirectory, 'isolated-profile', 'Only redacted, allow-listed composition metadata was copied into the temporary profile.'))
 
     try {

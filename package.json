@@ -1,6 +1,6 @@
 {
   "name": "dsh-composition-doctor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": false,
   "description": "Read-only DSH and Cordis composition diagnostics, snapshots, diffs, and isolated preflight.",
   "license": "MIT",
@@ -8,7 +8,8 @@
   "exports": {
     ".": "./dist/plugin/index.js",
     "./client": "./dist/client.js",
-    "./cli": "./dist/cli/main.js"
+    "./cli": "./dist/cli/main.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
@@ -38,7 +39,7 @@
   },
   "packageManager": "pnpm@10.17.1",
   "scripts": {
-    "test": "vitest run",
+    "test": "pnpm build && vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsc && node scripts/build-client.mjs",
     "dsh-doctor": "node dist/cli/main.js"

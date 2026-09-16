@@ -104,5 +104,7 @@ export function analyseComposition(model: CompositionModel): AnalysisReport {
     }
   }
   diagnostics.sort((left, right) => left.id.localeCompare(right.id) || left.title.localeCompare(right.title) || left.evidence[0]?.source.localeCompare(right.evidence[0]?.source ?? '') || 0)
-  return { schemaVersion: 1, generatedAt: new Date().toISOString(), profileDir: model.profileDir, diagnostics }
+  const evidenceMode = model.evidenceMode ?? 'static'
+  const unverifiedFindings = diagnostics.filter((item) => item.id === 'runtime-composition-unavailable' || item.evidence.some((entry) => entry.evidenceKind === 'static')).map((item) => item.id)
+  return { schemaVersion: 1, generatedAt: new Date().toISOString(), profileDir: model.profileDir, evidenceMode, ...(model.metadataCoverage === undefined ? {} : { metadataCoverage: model.metadataCoverage }), unverifiedFindings, diagnostics }
 }

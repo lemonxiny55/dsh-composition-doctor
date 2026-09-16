@@ -18,6 +18,14 @@ Composition and upgrade preflight doctor for [DeepSeek Harness](https://github.c
 
 The Web Settings page is display/export only: it reads the latest local report, shows a conflict graph, and exports JSON/Markdown. It has no repair, install, or uninstall action.
 
+## Reports and evidence boundaries
+
+`scan --output <dir>` writes only to the requested directory. To make the same report visible to the read-only Settings page, opt in explicitly: `--publish` copies it to the default plugin directory `.dsh-composition-doctor/reports`, while `--report-dir <dir>` publishes to a configured plugin directory. Use `--format both` so the Web route has `report.json` and Markdown remains exportable. Do not use a profile directory, `.env` location, or any directory containing keys, tokens, or other secrets as a report directory.
+
+Reports declare `evidenceMode`: `static` means allow-listed root YAML/manifest metadata only; `resolved` requires an injected public runtime provider; `mixed` is reserved for an adapter that supplies both. Static findings and the bounded metadata coverage are not proof of the final runtime composition. This release has no stable public DSH runtime provider bundled.
+
+`preflight --candidate package@version` inserts a validated exact reference into an isolated temporary `package.json` and includes that declared metadata in static analysis. It never downloads, installs, loads, or runs candidate lifecycle scripts; peer/platform facts inside an uninstalled candidate and runtime compatibility remain unverified. `--allow-build` is only a recorded future runner gate and still executes no third-party script.
+
 ## Install
 
 ```powershell
@@ -30,7 +38,8 @@ Restart the Web UI (`npx @deepseek-ai/dsh web`) after changing a profile. The CL
 ## Example
 
 ```powershell
-dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\profile
+dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\profile --publish
+dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\archive --report-dir C:\safe\doctor-reports
 dsh-doctor snapshot --profile C:\path\to\profile --output .\reports\before.json
 dsh-doctor diff --before .\reports\before.json --after .\reports\after.json --format both
 dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.0-rc.6

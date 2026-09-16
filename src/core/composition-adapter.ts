@@ -1,6 +1,6 @@
 import { parse } from 'yaml'
 
-import type { CompositionModel, CompositionRow, Diagnostic, ProfileFile, ProfileInput, ResolvedCompositionProvider } from './types.js'
+import type { BundleFact, CompositionModel, CompositionRow, Diagnostic, PeerRequirement, PlatformRequirement, ProfileFile, ProfileInput, ResolvedCompositionProvider } from './types.js'
 
 function runtimeUnavailableDiagnostic(): Diagnostic {
   return {
@@ -69,19 +69,47 @@ function staticRows(file: ProfileFile): CompositionRow[] {
   })
 }
 
+function staticManifestFacts(file: ProfileFile): Pick<CompositionModel, 'bundles' | 'peerRequirements' | 'platforms'> {
+  if (file.relativePath !== 'package.json') return {}
+  try {
+    const manifest = JSON.parse(file.text) as Record<string, unknown>
+    const dependencies = manifest.dependencies !== null && typeof manifest.dependencies === 'object' ? manifest.dependencies as Record<string, unknown> : {}
+    const bundles: BundleFact[] = Object.entries(dependencies)
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+      .map(([name, version]) => ({ name, version, source: file.relativePath, evidenceKind: 'static' }))
+    const peer = manifest.peerDependencies !== null && typeof manifest.peerDependencies === 'object' ? manifest.peerDependencies as Record<string, unknown> : {}
+    const peerRequirements: PeerRequirement[] = typeof manifest.name === 'string' ? [{
+      packageName: manifest.name, source: file.relativePath, evidenceKind: 'static',
+      ...(typeof peer.dsh === 'string' ? { dsh: peer.dsh } : {}),
+      ...(typeof peer.cordis === 'string' ? { cordis: peer.cordis } : {}),
+      ...(typeof peer.node === 'string' ? { node: peer.node } : {})
+    }] : []
+    const supported = Array.isArray(manifest.os) ? manifest.os.filter((value): value is string => typeof value === 'string') : []
+    const platforms: PlatformRequirement[] = typeof manifest.name === 'string' && supported.length > 0 ? [{ packageName: manifest.name, source: file.relativePath, evidenceKind: 'static', supported }] : []
+    return { bundles, peerRequirements, platforms }
+  } catch {
+    return {}
+  }
+}
+
 export async function resolveComposition(input: ProfileInput, provider?: ResolvedCompositionProvider): Promise<CompositionModel> {
   if (provider) {
     const providedRows = await provider.resolve(input)
     return {
       profileDir: input.profileDir,
       rows: providedRows.map((row) => ({ ...(cloneProviderValue(row) as CompositionRow), evidenceKind: 'resolved' })),
-      adapterDiagnostics: []
+      adapterDiagnostics: [], evidenceMode: 'resolved', metadataCoverage: input.metadataCoverage
     }
   }
 
   const rows: CompositionRow[] = []
+  const bundles: BundleFact[] = []
+  const peerRequirements: PeerRequirement[] = []
+  const platforms: PlatformRequirement[] = []
   const adapterDiagnostics: Diagnostic[] = [runtimeUnavailableDiagnostic()]
   for (const file of input.files) {
+    const facts = staticManifestFacts(file)
+    bundles.push(...(facts.bundles ?? [])); peerRequirements.push(...(facts.peerRequirements ?? [])); platforms.push(...(facts.platforms ?? []))
     if (file.relativePath !== 'cordis.yml' && file.relativePath !== 'cordis.patch.yml') continue
     try {
       rows.push(...staticRows(file))
@@ -89,5 +117,5 @@ export async function resolveComposition(input: ProfileInput, provider?: Resolve
       adapterDiagnostics.push(parseFailedDiagnostic(file, error))
     }
   }
-  return { profileDir: input.profileDir, rows, adapterDiagnostics }
+  return { profileDir: input.profileDir, rows, bundles, peerRequirements, platforms, adapterDiagnostics, evidenceMode: 'static', metadataCoverage: input.metadataCoverage }
 }

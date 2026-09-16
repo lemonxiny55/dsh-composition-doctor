@@ -1,4 +1,5 @@
 import type { Snapshot, SnapshotPlugin } from './snapshot.js'
+import { satisfies as semverSatisfies } from 'semver'
 
 export type ChangeKind = 'added' | 'removed' | 'upgraded' | 'downgraded' | 'changed'
 export interface SnapshotChange<T> { kind: ChangeKind; key: string; before?: T; after?: T }
@@ -36,16 +37,19 @@ export function renderSnapshotDiffMarkdown(diff: SnapshotDiff): string {
 
 function compareVersions(left: string | undefined, right: string | undefined): number | undefined {
   if (left === undefined || right === undefined) return undefined
-  const parse = (value: string) => /^(\d+)\.(\d+)\.(\d+)/.exec(value)?.slice(1).map(Number)
-  const a = parse(left); const b = parse(right)
-  if (a === undefined || b === undefined) return undefined
-  for (let index = 0; index < 3; index += 1) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1
-  return 0
+  try {
+    if (semverSatisfies(left, `<${right}`, { includePrerelease: true })) return -1
+    if (semverSatisfies(left, `>${right}`, { includePrerelease: true })) return 1
+    if (semverSatisfies(left, `=${right}`, { includePrerelease: true })) return 0
+    return undefined
+  } catch {
+    return undefined
+  }
 }
 
-function changes<T>(before: readonly T[], after: readonly T[], key: (item: T) => string): SnapshotChange<T>[] {
-  const previous = new Map(before.map((item) => [key(item), item]))
-  const next = new Map(after.map((item) => [key(item), item]))
+function changes<T>(before: readonly T[], after: readonly T[], beforeKey: (item: T) => string, afterKey: (item: T) => string = beforeKey): SnapshotChange<T>[] {
+  const previous = new Map(before.map((item) => [beforeKey(item), item]))
+  const next = new Map(after.map((item) => [afterKey(item), item]))
   const result: SnapshotChange<T>[] = []
   for (const itemKey of [...new Set([...previous.keys(), ...next.keys()])].sort()) {
     const left = previous.get(itemKey); const right = next.get(itemKey)
@@ -57,10 +61,12 @@ function changes<T>(before: readonly T[], after: readonly T[], key: (item: T) =>
 }
 
 export function diffSnapshots(before: Snapshot, after: Snapshot): SnapshotDiff {
-  const pluginChanges: PluginChange[] = changes(before.plugins, after.plugins, (item) => item.name).map((change) => {
-    if (change.kind !== 'changed') return { ...change, name: change.key }
+  const pluginKey = (profile: Snapshot['profile'], item: SnapshotPlugin) => `${profile.path}:${profile.packageName ?? ''}:${item.name}:${item.source}`
+  const pluginChanges: PluginChange[] = changes(before.plugins, after.plugins, (item) => pluginKey(before.profile, item), (item) => pluginKey(after.profile, item)).map((change) => {
+    const name = change.before?.name ?? change.after?.name ?? change.key
+    if (change.kind !== 'changed') return { ...change, name }
     const comparison = compareVersions(change.before?.version, change.after?.version)
-    return { ...change, name: change.key, kind: comparison === undefined ? 'changed' : comparison < 0 ? 'upgraded' : comparison > 0 ? 'downgraded' : 'changed' }
+    return { ...change, name, kind: comparison === undefined ? 'changed' : comparison < 0 ? 'upgraded' : comparison > 0 ? 'downgraded' : 'changed' }
   })
   const rowChanges = changes(before.rows, after.rows, (item) => `${item.source}:${item.id ?? item.name ?? ''}`)
   const hookChanges = changes(before.hooks, after.hooks, (item) => `${item.source}:${item.hook}:${item.packageName ?? ''}`)
