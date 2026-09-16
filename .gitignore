@@ -9,3 +9,4 @@ reports/
 .dsh-code-index/
 .env
 .env.*
+dsh-composition-doctor/
