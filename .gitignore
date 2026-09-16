@@ -1,11 +1,15 @@
+# Project is stored under dsh-composition-doctor/
+dsh-composition-doctor/.git/
+dsh-composition-doctor/node_modules/
+dsh-composition-doctor/dist/
+dsh-composition-doctor/.pnpm-store/
+dsh-composition-doctor/reports/
+dsh-composition-doctor/.dsh-code-index/
+.pnpm-store/
 .superpowers/
 node_modules/
 dist/
-test-results/
-coverage/
-.reports/
 reports/
-.pnpm-store/
 .dsh-code-index/
 .env
 .env.*
