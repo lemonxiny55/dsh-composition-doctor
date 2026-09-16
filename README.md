@@ -1,5 +1,21 @@
 # dsh-composition-doctor
 
+[![npm version](https://img.shields.io/npm/v/dsh-composition-doctor)](https://www.npmjs.com/package/dsh-composition-doctor)
+[![CI](https://github.com/lemonxiny55/dsh-composition-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/lemonxiny55/dsh-composition-doctor/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/lemonxiny55/dsh-composition-doctor)](https://github.com/lemonxiny55/dsh-composition-doctor/releases)
+
+English | [中文](README.zh.md)
+
+Read-only composition and upgrade preflight tooling for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It detects Cordis row, hook-order, UI ownership, dependency, platform, and profile-drift risks without changing a real profile.
+
+## What it does
+
+- `dsh-doctor scan` — produce evidence-backed JSON/Markdown diagnostics.
+- `dsh-doctor snapshot` — create redacted, comparable profile metadata.
+- `dsh-doctor diff` — summarize plugin, row, hook, UI, peer, and platform changes.
+- `dsh-doctor preflight` — rehearse a target DSH upgrade in an isolated temporary directory.
+- Web Settings — view the latest local report and export it; no repair actions are exposed.
+
 DeepSeek Harness (DSH) 的本地组合与升级预检插件。它只读取用户明确指定的 profile 元数据，输出有证据的 Cordis/插件组合诊断，并在独立临时目录中演练升级；不会修改真实 profile、安装或卸载插件，也不会扩大权限。
 
 ## 中文
