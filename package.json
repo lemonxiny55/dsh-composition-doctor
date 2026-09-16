@@ -7,7 +7,7 @@
   "main": "./dist/plugin/index.js",
   "exports": {
     ".": "./dist/plugin/index.js",
-    "./client": "./dist/client/index.js",
+    "./client": "./dist/client.js",
     "./cli": "./dist/cli/main.js"
   },
   "files": [
@@ -22,7 +22,12 @@
     },
     "client": {
       "platform": "web",
-      "inject": [],
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-plugins",
+        "@deepseek-ai/dsh-client-locale"
+      ],
       "immediately": false
     }
   },
@@ -34,7 +39,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
+    "build": "tsc && node scripts/build-client.mjs",
     "dsh-doctor": "node dist/cli/main.js"
   },
   "dependencies": {
@@ -44,6 +49,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   }

@@ -4,5 +4,6 @@ dist/
 test-results/
 coverage/
 .pnpm-store/
+.dsh-code-index/
 .env
 .env.*
