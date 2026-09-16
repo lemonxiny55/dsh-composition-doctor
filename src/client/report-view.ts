@@ -2,6 +2,7 @@ import type { AnalysisReport, Diagnostic, Severity } from '../core/types.js'
 import { renderMarkdown } from '../reports/markdown.js'
 
 export const clientReportPath = '/dsh-composition-doctor/reports/latest'
+export type Translator = (key: string) => string
 
 export interface ConflictNode {
   id: string
@@ -87,22 +88,24 @@ function download(document: Document, content: string, filename: string, mime: s
  * Browser-native settings section. It only performs a GET and offers local
  * downloads; it contains no profile, package, configuration, or repair writes.
  */
-export function createReportView(document: Document = globalThis.document): HTMLElement {
+export function createReportView(document: Document = globalThis.document, translate: Translator = (key) => ({
+  title: 'DSH Composition Doctor', exportJson: 'Export JSON', exportMarkdown: 'Export Markdown', loading: 'Loading the latest local report…', unavailable: 'The latest report is unavailable.'
+}[key] ?? key)): HTMLElement {
   const root = document.createElement('section')
   root.dataset.plugin = nameForDom
   root.setAttribute('aria-labelledby', 'dsh-composition-doctor-title')
   const heading = document.createElement('h2')
   heading.id = 'dsh-composition-doctor-title'
-  heading.append(text(document, 'DSH Composition Doctor'))
+  heading.append(text(document, translate('title')))
   root.append(heading)
   const status = document.createElement('p')
-  status.textContent = 'Loading the latest local report…'
+  status.textContent = translate('loading')
   root.append(status)
   const actions = document.createElement('p')
   actions.append(
-    button(document, 'Export JSON', () => { void fetchReport().then((report) => download(document, `${JSON.stringify(report, null, 2)}\n`, 'dsh-composition-doctor-report.json', 'application/json')).catch(() => undefined) }),
+    button(document, translate('exportJson'), () => { void fetchReport().then((report) => download(document, `${JSON.stringify(report, null, 2)}\n`, 'dsh-composition-doctor-report.json', 'application/json')).catch(() => undefined) }),
     text(document, ' '),
-    button(document, 'Export Markdown', () => { void fetchReport().then((report) => download(document, renderMarkdown(report), 'dsh-composition-doctor-report.md', 'text/markdown')).catch(() => undefined) })
+    button(document, translate('exportMarkdown'), () => { void fetchReport().then((report) => download(document, renderMarkdown(report), 'dsh-composition-doctor-report.md', 'text/markdown')).catch(() => undefined) })
   )
   root.append(actions)
   void fetchReport().then((report) => {
@@ -116,7 +119,7 @@ export function createReportView(document: Document = globalThis.document): HTML
     }
     root.append(list)
   }).catch((error: unknown) => {
-    status.textContent = error instanceof Error ? error.message : 'The latest report is unavailable.'
+    status.textContent = error instanceof Error ? error.message : translate('unavailable')
   })
   return root
 }

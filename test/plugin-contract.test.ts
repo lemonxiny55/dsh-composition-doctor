@@ -44,7 +44,7 @@ describe('client plugin contract', () => {
       }
     }
     applyClient(ctx)
-    expect(applyClient.inject).toEqual(['slots'])
+    expect(applyClient.inject).toEqual(['slots', 'locale'])
     expect(registrations).toHaveLength(1)
     expect(registrations[0]).toEqual(expect.objectContaining({ metadata: expect.objectContaining({ name: 'settings.plugins.tab', id: 'dsh-composition-doctor' }) }))
   })
