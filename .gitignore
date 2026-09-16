@@ -3,6 +3,8 @@ node_modules/
 dist/
 test-results/
 coverage/
+.reports/
+reports/
 .pnpm-store/
 .dsh-code-index/
 .env
