@@ -33,7 +33,7 @@ describe('readProfile', () => {
     expect(profile.files.map((file) => file.text).join('\n')).not.toContain('do-not-leak')
     expect(profile.files.every((file) => /^[a-f0-9]{64}$/.test(file.sha256))).toBe(true)
     expect(profile.metadataCoverage).toMatchObject({ mode: 'allow-listed-root-metadata' })
-    expect(profile.metadataCoverage.unscannedSurfaces).toContain('nested plugin manifests and bundle metadata')
+    expect(profile.metadataCoverage.unscannedSurfaces).toContain('non-declared nested plugin manifests and non-selected package metadata')
   })
 
   it('skips an allow-listed symlink that resolves outside the profile root', async (context) => {
@@ -119,7 +119,7 @@ describe('resolveComposition', () => {
     ]))
   })
 
-  it('uses cloned provider rows marked resolved instead of static files', async () => {
+  it('uses cloned provider rows marked composed instead of static files', async () => {
     const input = await readProfile({ profileDir: await copyHealthyProfile() })
     const providerRow = {
       id: 'runtime-plugin',
@@ -134,7 +134,7 @@ describe('resolveComposition', () => {
       id: 'runtime-plugin',
       source: 'provider',
       config: { nested: { enabled: true } },
-      evidenceKind: 'resolved'
+      evidenceKind: 'composed'
     }])
     expect(composition.rows[0]).not.toBe(providerRow)
     expect(composition.rows[0].config).not.toBe(providerRow.config)
@@ -142,7 +142,7 @@ describe('resolveComposition', () => {
     expect(providerRow.config.nested.enabled).toBe(true)
     expect(providerRow.evidenceKind).toBe('static')
     expect(composition.adapterDiagnostics).toEqual([])
-    expect(composition.evidenceMode).toBe('resolved')
+    expect(composition.evidenceMode).toBe('composed')
   })
 
   it('accepts provider rows with function values while detaching plain nested config', async () => {

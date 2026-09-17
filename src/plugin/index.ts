@@ -49,6 +49,7 @@ export interface DoctorContext {
 }
 
 export const latestReportPath = '/dsh-composition-doctor/reports/latest'
+const maxReportBytes = 2 * 1024 * 1024
 
 function reportDirectory(config: DoctorConfig): string {
   return resolveReportDirectory(config.reportDir)
@@ -76,8 +77,10 @@ async function latestReport(config: DoctorConfig): Promise<string | undefined> {
       const candidate = resolve(directory, filename)
       const fileStat = await lstat(candidate)
       if (!fileStat.isFile()) continue
+      if (fileStat.size > maxReportBytes) continue
       const text = await readFile(candidate, 'utf8')
-      JSON.parse(text)
+      const value: unknown = JSON.parse(text)
+      if (!isAnalysisReport(value)) continue
       return text.endsWith('\n') ? text : `${text}\n`
     } catch {
       // A missing or malformed report is represented as 404 below. Details are
@@ -85,6 +88,13 @@ async function latestReport(config: DoctorConfig): Promise<string | undefined> {
     }
   }
   return undefined
+}
+
+function isAnalysisReport(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false
+  const report = value as { schemaVersion?: unknown; evidenceSchemaVersion?: unknown; diagnostics?: unknown; evidenceMode?: unknown; generatedAt?: unknown; runtimeObserved?: unknown }
+  const legacy = report.evidenceSchemaVersion === undefined && report.evidenceMode === 'resolved'
+  return report.schemaVersion === 1 && (report.evidenceSchemaVersion === 2 || legacy) && Array.isArray(report.diagnostics) && (report.evidenceMode === 'static' || report.evidenceMode === 'composed' || report.evidenceMode === 'runtime-observed' || report.evidenceMode === 'mixed' || legacy) && typeof report.generatedAt === 'string' && (report.runtimeObserved === undefined || typeof report.runtimeObserved === 'boolean')
 }
 
 function route(config: DoctorConfig): WebRoute {

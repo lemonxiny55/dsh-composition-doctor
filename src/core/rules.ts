@@ -67,8 +67,8 @@ function peerDiagnostics(model: CompositionModel): Diagnostic[] {
 function bundleDiagnostics(bundles: readonly BundleFact[]): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
   for (const bundle of bundles) {
-    if (bundle.gitRef !== undefined && bundle.gitRef.length > 0) continue
-    diagnostics.push(diagnostic('missing-provenance', 'warning', 'Bundle provenance is unavailable', [evidence(bundle.source, bundle.name, 'No Git ref or immutable provenance was declared.', bundle.evidenceKind, bundle.name, bundle.version)], `The origin of ${bundle.name} cannot be verified from the selected metadata.`, 'Record an immutable Git ref, registry integrity hash, or other package provenance in the selected profile metadata.'))
+    if ((bundle.gitRef !== undefined && bundle.gitRef.length > 0) || (bundle.integrity !== undefined && bundle.integrity.length > 0)) continue
+    diagnostics.push(diagnostic('missing-provenance', 'warning', 'Bundle provenance is unavailable', [evidence(bundle.source, bundle.name, 'No Git ref or registry integrity was observed.', bundle.evidenceKind, bundle.name, bundle.version)], `The origin of ${bundle.name} cannot be verified from the selected metadata.`, 'Record an immutable Git ref or registry integrity hash in the selected package metadata.'))
   }
   for (const [name, group] of groups(bundles.filter((bundle) => bundle.profile !== undefined), (bundle) => bundle.name)) {
     if (new Set(group.map((bundle) => bundle.version ?? 'unknown')).size < 2) continue
@@ -77,19 +77,64 @@ function bundleDiagnostics(bundles: readonly BundleFact[]): Diagnostic[] {
   return diagnostics
 }
 
+function rowKeys(row: CompositionModel['rows'][number]): Set<string> {
+  if (row.configKeys !== undefined) return new Set(row.configKeys)
+  if (row.config !== null && typeof row.config === 'object' && !Array.isArray(row.config)) return new Set(Object.keys(row.config as Record<string, unknown>))
+  return new Set()
+}
+
+function rowDiagnostics(rows: CompositionModel['rows']): Diagnostic[] {
+  const diagnostics: Diagnostic[] = []
+  for (const [id, group] of groups(rows.filter((row) => row.id !== undefined), (row) => row.id as string)) {
+    const layers = groups(group, (row) => row.layer ?? row.source)
+    if (layers.size === 1 && group.length > 1) {
+      diagnostics.push(diagnostic('duplicate-row-in-same-layer', 'warning', 'Duplicate composition row id in one layer', group.map((row) => evidence(row.source, id, `row id ${id} is declared more than once in the same layer`, row.evidenceKind, row.name)), `The DSH public row semantics do not establish which declaration should win within one layer for ${id}.`, 'Give the row a unique id or verify the final resolved tree with a public dump provider.'))
+      continue
+    }
+    if (layers.size < 2) continue
+    const ordered = [...group].sort((left, right) => (left.layerOrder ?? Number.MAX_SAFE_INTEGER) - (right.layerOrder ?? Number.MAX_SAFE_INTEGER))
+    const previous = ordered[ordered.length - 2]
+    const current = ordered[ordered.length - 1]
+    diagnostics.push(diagnostic('intentional-row-override', 'info', 'Later composition layer overrides a row', [evidence(previous.source, id, `row id ${id} is overridden by a later layer`, previous.evidenceKind, previous.name), evidence(current.source, id, `row id ${id} replaces the earlier row`, current.evidenceKind, current.name)], `The same row id occurs across layers, which is compatible with DSH patch precedence when the later layer intentionally owns the row.`, 'Confirm the resolved provenance and keep the override documented.'))
+    const missing = [...rowKeys(previous)].filter((key) => !rowKeys(current).has(key)).sort()
+    if (missing.length > 0 && (current.replacement === true || current.configKeys !== undefined)) {
+      diagnostics.push(diagnostic('row-config-replacement-risk', 'warning', 'Row replacement drops earlier config keys', [evidence(current.source, id, `replacement omits keys: ${missing.join(', ')}`, current.evidenceKind, current.name)], `The later row replacement for ${id} does not contain all keys observed in the earlier config. Secret values are not included.`, 'Copy the required non-secret config keys into the replacing row or verify that their absence is intentional.'))
+    }
+  }
+  return diagnostics
+}
+
+function uiMode(claim: NonNullable<CompositionModel['uiClaims']>[number]): NonNullable<NonNullable<CompositionModel['uiClaims']>[number]['mode']> {
+  if (claim.mode !== undefined) return claim.mode
+  if (claim.kind === 'sidebar') return 'list-contribution'
+  if (claim.kind === 'web-route') return 'exact-route'
+  return 'single-owner'
+}
+
+function uiDiagnostics(claims: readonly NonNullable<CompositionModel['uiClaims']>[number][]): Diagnostic[] {
+  const diagnostics: Diagnostic[] = []
+  for (const [claim, values] of groups(claims, (value) => `${uiMode(value)}:${value.kind}:${value.value}`)) {
+    if (values.length < 2) continue
+    const mode = uiMode(values[0]!)
+    if (mode === 'list-contribution' && new Set(values.map((value) => value.contributionId ?? value.packageName ?? value.source)).size > 1) continue
+    const severity = mode === 'prefix-route' ? 'warning' : 'error'
+    const id = mode === 'exact-route' ? 'ui-exact-route-conflict' : mode === 'fallback-owner' ? 'ui-fallback-owner-conflict' : 'ui-ownership-conflict'
+    diagnostics.push(diagnostic(id, severity, mode === 'exact-route' ? 'Exact web route has multiple owners' : 'UI ownership claim conflicts', values.map((value) => evidence(value.source, claim, `${value.kind} ${value.value}`, value.evidenceKind, value.packageName, value.version)), mode === 'prefix-route' ? `Multiple prefix route claims may shadow one another; ownership is not proven.` : `Multiple concrete declarations claim the same ${claim} surface.`, 'Assign one owner, or provide distinct list contribution ids where the public UI API allows multiple contributors.'))
+  }
+  return diagnostics
+}
+
 export function analyseComposition(model: CompositionModel): AnalysisReport {
   const diagnostics: Diagnostic[] = [...model.adapterDiagnostics]
-  for (const [id, rows] of groups(model.rows.filter((row) => row.id !== undefined), (row) => row.id as string)) {
-    if (rows.length < 2) continue
-    diagnostics.push(diagnostic('duplicate-row-id', 'error', 'Duplicate composition row id', rows.map((row) => evidence(row.source, id, `row id ${id}`, row.evidenceKind, row.name)), `Multiple concrete composition rows claim the id ${id}.`, 'Give one row a unique id or remove the duplicate declaration.'))
+  const requestedMode = model.evidenceMode ?? 'static'
+  const runtimeObserved = requestedMode === 'runtime-observed' && model.runtimeObservation?.observed === true
+  if (requestedMode === 'runtime-observed' && !runtimeObserved) {
+    diagnostics.push(diagnostic('runtime-observation-unavailable', 'warning', 'Runtime observation is unavailable', [], 'The model requested runtime-observed evidence without a successful isolated runtime observation.', 'Keep this finding composed or static until a supported isolation backend returns observed runtime facts.'))
   }
-  for (const [claim, values] of groups(model.uiClaims ?? [], (value) => `${value.kind}:${value.value}`)) {
-    if (values.length < 2) continue
-    diagnostics.push(diagnostic('ui-ownership-conflict', 'error', 'Duplicate UI ownership claim', values.map((value) => evidence(value.source, claim, `${value.kind} ${value.value}`, value.evidenceKind, value.packageName, value.version)), `Multiple concrete declarations claim the same ${claim} UI surface.`, 'Assign the UI surface to one package or give each declaration a distinct slot, layout, sidebar entry, or route.'))
-  }
+  diagnostics.push(...rowDiagnostics(model.rows), ...uiDiagnostics(model.uiClaims ?? []))
   for (const [hook, values] of groups((model.hooks ?? []).filter((value) => value.hook === 'tools/pre-execute' || value.hook === 'tools/execute' || value.hook === 'tools/post-execute'), (value) => value.hook)) {
     if (values.length < 2) continue
-    diagnostics.push(diagnostic('hook-order-risk', 'warning', 'Multiple tool waterfall registrations', values.map((value) => evidence(value.source, hook, `registered ${hook}`, value.evidenceKind, value.packageName, value.version)), `Multiple listeners register ${hook}; static metadata does not establish their runtime order.`, 'Declare explicit ordering where the public DSH API supports it, then verify the resolved hook order in an isolated fixture.'))
+    diagnostics.push(diagnostic('hook-order-risk', 'warning', 'Multiple tool waterfall registrations', values.map((value) => evidence(value.source, hook, `registered ${hook}`, value.evidenceKind, value.packageName, value.version)), `Multiple listeners register ${hook}; runtime listener order is unverified.`, 'Declare explicit ordering where the public DSH API supports it, then verify the resolved hook order in an isolated fixture.'))
   }
   for (const [path, writes] of groups(model.patchWrites ?? [], (write) => write.path)) {
     if (writes.length < 2) continue
@@ -99,12 +144,15 @@ export function analyseComposition(model: CompositionModel): AnalysisReport {
   const platform = model.runtime?.platform
   for (const requirement of model.platforms ?? []) {
     const item = evidence(requirement.source, requirement.packageName, `supports ${requirement.supported.join(', ')}; observed ${platform ?? 'unknown'}`, requirement.evidenceKind, requirement.packageName)
-    if (platform === undefined || !requirement.supported.includes(platform)) {
+    const excluded = requirement.supported.includes(`!${platform ?? ''}`)
+    const positive = requirement.supported.filter((value) => !value.startsWith('!'))
+    const supported = platform !== undefined && !excluded && (positive.length === 0 || positive.includes(platform))
+    if (!supported) {
       diagnostics.push(diagnostic('platform-mismatch', 'warning', 'Declared platform does not include selected runtime', [item], platform === undefined ? `No runtime platform was supplied for ${requirement.packageName}.` : `${requirement.packageName} declares ${requirement.supported.join(', ')}, not ${platform}.`, 'Use a supported platform or verify an intentional override in an isolated fixture.'))
     }
   }
   diagnostics.sort((left, right) => left.id.localeCompare(right.id) || left.title.localeCompare(right.title) || left.evidence[0]?.source.localeCompare(right.evidence[0]?.source ?? '') || 0)
-  const evidenceMode = model.evidenceMode ?? 'static'
+  const evidenceMode = runtimeObserved ? 'runtime-observed' : requestedMode === 'runtime-observed' ? 'composed' : requestedMode
   const unverifiedFindings = diagnostics.filter((item) => item.id === 'runtime-composition-unavailable' || item.evidence.some((entry) => entry.evidenceKind === 'static')).map((item) => item.id)
-  return { schemaVersion: 1, generatedAt: new Date().toISOString(), profileDir: model.profileDir, evidenceMode, ...(model.metadataCoverage === undefined ? {} : { metadataCoverage: model.metadataCoverage }), unverifiedFindings, diagnostics }
+  return { schemaVersion: 1, evidenceSchemaVersion: 2, generatedAt: new Date().toISOString(), profileDir: model.profileDir, evidenceMode, runtimeObserved, ...(model.metadataCoverage === undefined ? {} : { metadataCoverage: model.metadataCoverage }), unverifiedFindings, diagnostics }
 }

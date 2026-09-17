@@ -41,6 +41,15 @@ export interface ReportViewModel {
   graph: ConflictGraph
 }
 
+export function evidenceBadgeLabel(mode: AnalysisReport['evidenceMode'], runtimeObserved: boolean): string {
+  if (mode === 'runtime-observed' && runtimeObserved) return 'runtime-observed'
+  if (mode === 'runtime-observed') return 'composed; runtime not observed'
+  if (mode === 'composed') return 'composed; runtime not observed'
+  if (mode === 'mixed') return runtimeObserved ? 'mixed; runtime observed' : 'mixed; runtime not observed'
+  if (mode === 'resolved') return 'legacy resolved; runtime not observed'
+  return 'static'
+}
+
 export function buildConflictGraph(report: AnalysisReport): ConflictGraph {
   const nodes = new Map<string, ConflictNode>()
   const edges: ConflictEdge[] = []
@@ -62,6 +71,29 @@ export function toReportViewModel(report: AnalysisReport): ReportViewModel {
   const counts: Record<Severity, number> = { info: 0, warning: 0, error: 0 }
   for (const diagnostic of report.diagnostics) counts[diagnostic.severity] += 1
   return { report, counts, graph: buildConflictGraph(report) }
+}
+
+function renderConflictGraph(document: Document, graph: ConflictGraph): HTMLElement {
+  const section = document.createElement('section')
+  section.setAttribute('aria-labelledby', 'dsh-composition-doctor-conflict-graph')
+  const heading = document.createElement('h3')
+  heading.id = 'dsh-composition-doctor-conflict-graph'
+  heading.textContent = 'Conflict graph'
+  section.append(heading)
+  const list = document.createElement('ul')
+  for (const node of graph.nodes) {
+    const item = document.createElement('li')
+    const outgoing = graph.edges.filter((edge) => edge.from === node.id).map((edge) => graph.nodes.find((candidate) => candidate.id === edge.to)?.label ?? edge.to)
+    item.textContent = `${node.label} (${node.source})${outgoing.length === 0 ? '' : ` → ${outgoing.join(', ')}`}`
+    list.append(item)
+  }
+  if (graph.nodes.length === 0) {
+    const item = document.createElement('li')
+    item.textContent = 'No evidence relationships were produced.'
+    list.append(item)
+  }
+  section.append(list)
+  return section
 }
 
 function isReport(value: unknown): value is AnalysisReport {
@@ -146,9 +178,15 @@ export function createReportView(document: Document = globalThis.document, trans
     button(document, translate('exportMarkdown'), () => { void exportReport(document, 'markdown', dependencies).catch(() => undefined) })
   )
   root.append(actions)
-  void fetchReport().then((report) => {
+  void fetchReport(dependencies.fetcher).then((report) => {
     const model = toReportViewModel(report)
-    status.textContent = `Generated: ${report.generatedAt}. Profile: ${report.profileDir}. Evidence mode: ${report.evidenceMode}. Diagnostics: ${model.counts.error} error, ${model.counts.warning} warning, ${model.counts.info} info.`
+    const badge = document.createElement('span')
+    badge.dataset.evidenceKind = report.evidenceMode
+    badge.setAttribute('aria-label', 'Evidence capability')
+    badge.textContent = `Evidence: ${evidenceBadgeLabel(report.evidenceMode, report.runtimeObserved === true)}`
+    status.textContent = `Generated: ${report.generatedAt}. Profile: ${report.profileDir}. Diagnostics: ${model.counts.error} error, ${model.counts.warning} warning, ${model.counts.info} info.`
+    status.append(document.createTextNode(' '), badge)
+    root.append(renderConflictGraph(document, model.graph))
     const list = document.createElement('ul')
     for (const diagnostic of report.diagnostics) {
       const item = document.createElement('li')

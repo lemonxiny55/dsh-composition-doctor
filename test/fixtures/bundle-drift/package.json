@@ -1,0 +1,4 @@
+{
+  "name": "bundle-drift",
+  "dsh": { "profile": { "bundles": [{ "name": "@fixture/drift-bundle", "version": "2.0.0" }] } }
+}

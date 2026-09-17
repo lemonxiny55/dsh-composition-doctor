@@ -1,0 +1,4 @@
+plugins:
+  - id: redacted
+    config:
+      token: must-not-enter-a-snapshot

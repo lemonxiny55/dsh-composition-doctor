@@ -1,0 +1,4 @@
+{
+  "name": "healthy-single-plugin",
+  "dsh": { "profile": { "bundles": [{ "name": "@fixture/healthy-bundle", "version": "1.2.3" }] } }
+}

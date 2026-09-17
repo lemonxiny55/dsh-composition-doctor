@@ -1,11 +1,12 @@
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 import { resolveComposition } from '../core/composition-adapter.js'
 import { diffSnapshots, renderSnapshotDiffMarkdown } from '../core/diff.js'
 import { readProfile } from '../core/profile-reader.js'
-import { createSnapshot, type Snapshot } from '../core/snapshot.js'
+import { createSnapshot, isSnapshotV1, isSnapshotV2, type Snapshot } from '../core/snapshot.js'
 import { analyseComposition } from '../core/rules.js'
 import { renderJson } from '../reports/json.js'
 import { renderMarkdown } from '../reports/markdown.js'
@@ -18,6 +19,15 @@ export interface CliIo {
 
 const usage = 'Usage: dsh-doctor <scan | snapshot | diff | preflight>'
 const commands = new Set(['scan', 'snapshot', 'diff', 'preflight'])
+
+function packageVersion(): string {
+  try {
+    const manifest = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../package.json'), 'utf8')) as { version?: unknown }
+    return typeof manifest.version === 'string' ? manifest.version : 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
 
 function option(argv: readonly string[], name: string): string | undefined {
   const index = argv.indexOf(name)
@@ -45,7 +55,15 @@ async function scan(argv: readonly string[], io: CliIo): Promise<number> {
   const format = option(argv, '--format') ?? 'json'
   if (profile === undefined || output === undefined) return invalid(io, 'scan requires --profile and --output')
   if (format !== 'json' && format !== 'markdown' && format !== 'both') return invalid(io, '--format must be json, markdown, or both')
-  const report = analyseComposition(await resolveComposition(await readProfile({ profileDir: resolve(profile) })))
+  const failOn = option(argv, '--fail-on') ?? 'never'
+  if (failOn !== 'never' && failOn !== 'info' && failOn !== 'warning' && failOn !== 'error') return invalid(io, '--fail-on must be info, warning, error, or never')
+  const primary = await resolveComposition(await readProfile({ profileDir: resolve(profile) }))
+  const compared = await Promise.all(options(argv, '--compare-profile').map(async (value) => ({ name: value, model: await resolveComposition(await readProfile({ profileDir: resolve(value) })) })))
+  const report = analyseComposition(compared.length === 0 ? primary : {
+    ...primary,
+    bundles: [...(primary.bundles ?? []), ...compared.flatMap(({ name, model }) => (model.bundles ?? []).map((bundle) => ({ ...bundle, profile: name })))],
+    adapterDiagnostics: [...primary.adapterDiagnostics, ...compared.flatMap(({ model }) => model.adapterDiagnostics)]
+  })
   const destination = resolve(output)
   const destinations = [destination, ...(publish ? [resolveReportDirectory(configuredReportDir)] : [])]
   for (const directory of destinations) {
@@ -55,6 +73,9 @@ async function scan(argv: readonly string[], io: CliIo): Promise<number> {
   }
   io.write(`Wrote reports to ${destination}`)
   if (publish) io.write(`Published reports to ${destinations[1]}`)
+  if (failOn === 'info' && report.diagnostics.length > 0) return 1
+  if (failOn === 'error' && report.diagnostics.some((item) => item.severity === 'error')) return 1
+  if (failOn === 'warning' && report.diagnostics.some((item) => item.severity === 'warning' || item.severity === 'error')) return 1
   return 0
 }
 
@@ -69,9 +90,7 @@ async function snapshot(argv: readonly string[], io: CliIo): Promise<number> {
   return 0
 }
 
-function isSnapshot(value: unknown): value is Snapshot {
-  return value !== null && typeof value === 'object' && (value as { schemaVersion?: unknown }).schemaVersion === 1
-}
+function isSnapshot(value: unknown): value is Snapshot { return isSnapshotV1(value) || isSnapshotV2(value) }
 
 async function diff(argv: readonly string[], io: CliIo): Promise<number> {
   const beforePath = option(argv, '--before')
@@ -81,10 +100,20 @@ async function diff(argv: readonly string[], io: CliIo): Promise<number> {
   if (format !== 'json' && format !== 'markdown' && format !== 'both') return invalid(io, '--format must be json, markdown, or both')
   const before: unknown = JSON.parse(await readFile(resolve(beforePath), 'utf8'))
   const after: unknown = JSON.parse(await readFile(resolve(afterPath), 'utf8'))
-  if (!isSnapshot(before) || !isSnapshot(after)) return invalid(io, 'diff inputs must be schema version 1 snapshots')
+  if (!isSnapshot(before) || !isSnapshot(after)) return invalid(io, 'diff inputs must be schema version 1 or 2 snapshots')
   const result = diffSnapshots(before, after)
-  if (format === 'json' || format === 'both') io.write(`${JSON.stringify(result, null, 2)}\n`)
-  if (format === 'markdown' || format === 'both') io.write(renderSnapshotDiffMarkdown(result))
+  const output = option(argv, '--output')
+  const rendered = [
+    ...(format === 'json' || format === 'both' ? [`${JSON.stringify(result, null, 2)}\n`] : []),
+    ...(format === 'markdown' || format === 'both' ? [renderSnapshotDiffMarkdown(result)] : [])
+  ]
+  if (output === undefined) rendered.forEach((value) => io.write(value))
+  else {
+    const destination = resolve(output)
+    await mkdir(dirname(destination), { recursive: true })
+    await writeFile(destination, rendered.join(''), 'utf8')
+    io.write(`Wrote diff to ${destination}`)
+  }
   return 0
 }
 
@@ -99,7 +128,10 @@ async function preflight(argv: readonly string[], io: CliIo): Promise<number> {
     candidates: options(argv, '--candidate'),
     allowBuild: argv.includes('--allow-build'),
     online: argv.includes('--online'),
-    keepTemp: argv.includes('--keep-temp')
+    keepTemp: argv.includes('--keep-temp'),
+    dshBin: option(argv, '--dsh-bin'),
+    dshPackage: option(argv, '--dsh-package'),
+    packageManagerCacheDirs: options(argv, '--package-manager-cache')
   })
   const rendered = `${JSON.stringify(result, null, 2)}\n`
   if (output === undefined) io.write(rendered)
@@ -117,6 +149,11 @@ export async function runCli(argv: readonly string[], io: CliIo = { write: (line
 
   if (argv.length === 0 || command === '--help') {
     io.write(usage)
+    return 0
+  }
+
+  if (command === '--version') {
+    io.write(packageVersion())
     return 0
   }
 

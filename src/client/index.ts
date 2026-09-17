@@ -43,7 +43,7 @@ export interface ClientApply {
 export const apply: ClientApply = Object.assign(
   (ctx: SlotsContext): void | (() => void) => {
     const messages = {
-      zh: { title: 'DSH 组合医生', exportJson: '导出 JSON', exportMarkdown: '导出 Markdown' },
+      zh: { title: 'DSH Composition Doctor', exportJson: '导出 JSON', exportMarkdown: '导出 Markdown' },
       en: { title: 'DSH Composition Doctor', exportJson: 'Export JSON', exportMarkdown: 'Export Markdown' }
     }
     const disposeLocale = ctx.locale?.register('dshCompositionDoctor', messages)

@@ -1,0 +1,12 @@
+{
+  "name": "dsh-doctor-real-compatibility-profile",
+  "private": true,
+  "dependencies": {
+    "dsh-doctor-real-bundle": "1.0.0"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": ["dsh-doctor-real-bundle"]
+    }
+  }
+}

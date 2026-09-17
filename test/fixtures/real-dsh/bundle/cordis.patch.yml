@@ -1,0 +1,12 @@
+- insert:
+    - id: shared-row
+      name: Bundle row
+      config:
+        enabled: false
+        mode: bundle
+    - id: whole-config
+      config:
+        bundleOnly: true
+    - id: runtime-unknown
+      config:
+        handler: !!js "() => 'not executed'"

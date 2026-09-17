@@ -1,0 +1,4 @@
+{
+  "name": "platform-negation",
+  "dsh": { "profile": { "bundles": [{ "name": "@fixture/platform-bundle" }] } }
+}

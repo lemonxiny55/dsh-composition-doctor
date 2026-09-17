@@ -1,0 +1,11 @@
+- id: shared-row
+  name: Bundle row
+  config:
+    enabled: true
+    mode: profile
+- id: whole-config
+  config:
+    profileOnly: true
+- id: runtime-unknown
+  config:
+    handler: !!js "() => 'not executed'"

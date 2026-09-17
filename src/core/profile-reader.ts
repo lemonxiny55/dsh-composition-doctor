@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, realpath, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
+import { inspectBundleInventory } from './bundle-inventory.js'
 import type { ProfileFile, ProfileInput } from './types.js'
 
 const allowedFiles = [
@@ -57,13 +58,20 @@ export async function readProfile({ profileDir }: { profileDir: string }): Promi
     }
   }
 
+  const packageFile = files.find((file) => file.relativePath === 'package.json')
+  const inventory = packageFile === undefined
+    ? { packages: [], diagnostics: [] }
+    : await inspectBundleInventory(resolvedRoot, packageFile.text)
+
   return {
     profileDir: resolvedRoot,
     files,
+    installedPackages: inventory.packages,
+    inventoryDiagnostics: inventory.diagnostics,
     metadataCoverage: {
       mode: 'allow-listed-root-metadata',
       scannedFiles: files.map((file) => file.relativePath).sort(),
-      unscannedSurfaces: ['nested plugin manifests and bundle metadata', 'environment files and values', 'private keys, tokens, sessions, and workspace source files']
+      unscannedSurfaces: ['non-declared nested plugin manifests and non-selected package metadata', 'environment files and values', 'private keys, tokens, sessions, and workspace source files']
     }
   }
 }

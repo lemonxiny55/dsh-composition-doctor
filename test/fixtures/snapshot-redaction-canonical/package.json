@@ -1,0 +1,5 @@
+{
+  "name": "snapshot-redaction-canonical",
+  "dependencies": { "not-a-bundle": "^1.0.0" },
+  "apiToken": "must-not-enter-a-snapshot"
+}

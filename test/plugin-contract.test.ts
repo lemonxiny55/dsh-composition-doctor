@@ -62,4 +62,20 @@ describe('client plugin contract', () => {
     expect(registrations).toHaveLength(1)
     expect(registrations[0]).toEqual(expect.objectContaining({ metadata: expect.objectContaining({ name: 'settings.plugins.tab', id: 'dsh-composition-doctor' }) }))
   })
+
+  test('keeps the product name English when the host locale is Chinese', () => {
+    let messages: { zh: Record<string, string>; en: Record<string, string> } | undefined
+    let metadata: { label: () => string } | undefined
+    applyClient({
+      locale: {
+        register: (_namespace, value) => { messages = value },
+        bind: () => (key) => messages?.zh[key] ?? key
+      },
+      slots: {
+        inject: (_slot, factory) => factory(),
+        register: (value) => { metadata = value; return undefined }
+      }
+    })
+    expect(metadata?.label()).toBe('DSH Composition Doctor')
+  })
 })

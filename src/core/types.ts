@@ -6,7 +6,7 @@ export interface Evidence {
   subject?: string
   packageName?: string
   version?: string
-  evidenceKind?: EvidenceKind
+  evidenceKind: EvidenceKind
   severity?: Severity
 }
 
@@ -19,8 +19,18 @@ export interface Diagnostic {
   remediation: string
 }
 
-export type EvidenceKind = 'static' | 'resolved'
-export type EvidenceMode = 'static' | 'resolved' | 'mixed'
+export type EvidenceKind = 'static' | 'composed' | 'runtime-observed'
+/** @deprecated Accepted only while reading reports created before evidence v2. */
+export type LegacyEvidenceKind = 'resolved'
+export type EvidenceMode = 'static' | 'composed' | 'runtime-observed' | 'mixed'
+/** @deprecated Accepted only while reading reports created before evidence v2. */
+export type LegacyEvidenceMode = 'resolved'
+
+export interface RuntimeObservation {
+  observed: boolean
+  backend?: string
+  detail?: string
+}
 
 export interface MetadataCoverage {
   mode: 'allow-listed-root-metadata'
@@ -38,6 +48,25 @@ export interface ProfileInput {
   profileDir: string
   files: readonly ProfileFile[]
   metadataCoverage: MetadataCoverage
+  installedPackages: readonly InstalledPackageFact[]
+  inventoryDiagnostics: readonly Diagnostic[]
+}
+
+export interface InstalledPackageFact {
+  name: string
+  requestedSpec?: string
+  installedVersion?: string
+  packageJsonSource: string
+  bundlePatch?: string
+  repository?: string
+  gitRef?: string
+  integrity?: string
+  modifiedAt?: string
+  platform?: readonly string[]
+  peerDsh?: string
+  peerCordis?: string
+  engineNode?: string
+  lifecycleScripts?: readonly string[]
 }
 
 export interface CompositionRow {
@@ -46,6 +75,11 @@ export interface CompositionRow {
   source: string
   config?: unknown
   evidenceKind: EvidenceKind
+  layer?: string
+  layerOrder?: number
+  configKeys?: readonly string[]
+  replacement?: boolean
+  provenance?: readonly string[]
 }
 
 export interface UiClaim {
@@ -55,6 +89,8 @@ export interface UiClaim {
   packageName?: string
   version?: string
   evidenceKind: EvidenceKind
+  mode?: 'list-contribution' | 'single-owner' | 'exact-route' | 'prefix-route' | 'fallback-owner'
+  contributionId?: string
 }
 
 export interface HookRegistration {
@@ -92,9 +128,13 @@ export interface PeerRequirement {
 export interface BundleFact {
   name: string
   version?: string
+  requestedSpec?: string
   source: string
   evidenceKind: EvidenceKind
   gitRef?: string
+  integrity?: string
+  repository?: string
+  modifiedAt?: string
   profile?: string
 }
 
@@ -116,15 +156,19 @@ export interface CompositionModel {
   runtime?: RuntimeFacts
   peerRequirements?: readonly PeerRequirement[]
   bundles?: readonly BundleFact[]
+  installedPackages?: readonly InstalledPackageFact[]
   platforms?: readonly PlatformRequirement[]
   evidenceMode?: EvidenceMode
+  runtimeObservation?: RuntimeObservation
 }
 
 export interface AnalysisReport {
   schemaVersion: 1
+  evidenceSchemaVersion: 2
   generatedAt: string
   profileDir: string
-  evidenceMode: EvidenceMode
+  evidenceMode: EvidenceMode | LegacyEvidenceMode
+  runtimeObserved: boolean
   metadataCoverage?: MetadataCoverage
   unverifiedFindings: readonly string[]
   diagnostics: readonly Diagnostic[]

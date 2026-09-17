@@ -1,0 +1,5 @@
+plugins:
+  - id: tagged-row
+    config:
+      apiKey: visible-only-as-redacted
+      handler: !!js/function "() => 'must not execute'"

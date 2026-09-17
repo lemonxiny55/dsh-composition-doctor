@@ -25,7 +25,7 @@ function model(overrides: Record<string, unknown>): CompositionModel {
 }
 
 describe('analyseComposition', () => {
-  it('reports duplicate row id as an error with both source paths', async () => {
+  it('treats a cross-layer row id as an intentional override, not an error', async () => {
     const source = await fixture('duplicate-row-id')
     const report = analyseComposition(model({
       rows: [
@@ -36,14 +36,14 @@ describe('analyseComposition', () => {
     }))
 
     expect(report.diagnostics).toContainEqual(expect.objectContaining({
-      id: 'duplicate-row-id', severity: 'error', evidence: expect.arrayContaining([
+      id: 'intentional-row-override', severity: 'info', evidence: expect.arrayContaining([
         expect.objectContaining({ subject: 'shared-row', source: 'cordis.yml' }),
         expect.objectContaining({ subject: 'shared-row', source: 'cordis.patch.yml' })
       ])
     }))
   })
 
-  it('reports concrete duplicate UI root slot, sidebar, layout, and web route claims as errors', async () => {
+  it('distinguishes list contributions from single-owner and exact-route conflicts', async () => {
     await fixture('ui-conflict')
     const report = analyseComposition(model({
       uiClaims: [
@@ -58,11 +58,13 @@ describe('analyseComposition', () => {
       ]
     }))
 
-    for (const kind of ['root-slot', 'sidebar', 'layout', 'web-route']) {
+    for (const kind of ['root-slot', 'layout']) {
       expect(report.diagnostics).toContainEqual(expect.objectContaining({
         id: 'ui-ownership-conflict', severity: 'error', evidence: expect.arrayContaining([expect.objectContaining({ subject: expect.stringContaining(`${kind}:`) })])
       }))
     }
+    expect(report.diagnostics).toContainEqual(expect.objectContaining({ id: 'ui-exact-route-conflict', severity: 'error' }))
+    expect(report.diagnostics.some((item) => item.evidence.some((entry) => entry.subject?.includes('sidebar:')))).toBe(false)
   })
 
   it('reports multiple execute waterfalls as a warning, not a confirmed failure', async () => {

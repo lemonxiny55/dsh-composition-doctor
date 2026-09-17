@@ -1,0 +1,5 @@
+- id: shared-row
+  name: Bundle row
+  config:
+    enabled: true
+    mode: home

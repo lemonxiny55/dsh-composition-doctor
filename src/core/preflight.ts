@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { parse, stringify } from 'yaml'
-
 import { resolveComposition } from './composition-adapter.js'
+import { tryDshDump } from './dsh-dump-provider.js'
 import { readProfile } from './profile-reader.js'
-import { redact } from './redaction.js'
+import { redact, redactYamlPreservingTags } from './redaction.js'
 import { analyseComposition } from './rules.js'
 import type { CompositionModel, Evidence, ProfileInput, RuntimeFacts, Severity } from './types.js'
+import { resolveDshArtifact } from './preflight/artifact-resolver.js'
+import { resolveCandidateArtifact, type CandidateResolution } from './preflight/candidate-artifact-resolver.js'
+import { evaluatePackageResolution, type PackageResolutionResult } from './preflight/package-resolution.js'
 
 export interface PreflightOptions {
   profileDir: string
@@ -16,6 +18,10 @@ export interface PreflightOptions {
   candidates: readonly string[]
   allowBuild: boolean
   online: boolean
+  dshBin?: string
+  dshPackage?: string
+  artifactCacheDir?: string
+  packageManagerCacheDirs?: readonly string[]
   /** Keep the redacted rehearsal directory for inspection. Defaults to false. */
   keepTemp?: boolean
 }
@@ -34,10 +40,16 @@ export interface PreflightResult {
     outcome: PreflightOutcome
     detail: string
   }
+  compositionSmoke: PreflightSmoke
+  packageResolutionSmoke: PreflightSmoke
+  packageResolutions: readonly PackageResolutionResult[]
+  runtimeSmoke: PreflightSmoke
   realProfileFingerprintBefore?: string
   realProfileFingerprintAfter?: string
   tempDirectory?: string
 }
+
+export interface PreflightSmoke { outcome: PreflightOutcome | 'not-run'; detail: string }
 
 const yamlFiles = new Set(['cordis.yml', 'cordis.patch.yml'])
 const lockFiles = new Set(['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock'])
@@ -45,7 +57,7 @@ const packageNamePattern = /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/i
 const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9a-z.-]+)?(?:\+[0-9a-z.-]+)?$/i
 
 function evidence(source: string, subject: string, detail: string, severity?: Severity): Evidence {
-  return { source, subject, detail, ...(severity === undefined ? {} : { severity }) }
+  return { source, subject, detail, evidenceKind: 'static', ...(severity === undefined ? {} : { severity }) }
 }
 
 /** A digest of the allow-listed metadata surface; file contents are never returned. */
@@ -76,7 +88,7 @@ function safeMetadataText(relativePath: string, text: string): string | undefine
       return `${JSON.stringify(redact(JSON.parse(text)), null, 2)}\n`
     }
     if (yamlFiles.has(relativePath)) {
-      return stringify(redact(parse(text)))
+      return redactYamlPreservingTags(text)
     }
   } catch {
     // Invalid metadata is reported by the composition adapter; it is not copied
@@ -150,6 +162,9 @@ export async function runPreflight(options: PreflightOptions): Promise<Preflight
   let tempDirectory: string | undefined
   let smokeOutcome: PreflightOutcome = 'pass'
   let smokeDetail = 'No isolated smoke test was run.'
+  let packageResolutionOutcome: PreflightOutcome | 'not-run' = 'not-run'
+  let packageResolutionDetail = 'No candidate package was supplied.'
+  const packageResolutions: PackageResolutionResult[] = []
   let diagnostics: ReturnType<typeof analyseComposition>['diagnostics'] = []
   let profileDir = requestedProfile
   let extraWarning = false
@@ -159,7 +174,11 @@ export async function runPreflight(options: PreflightOptions): Promise<Preflight
       evidenceItems.push(evidence(requestedProfile, 'target-dsh-invalid', 'Target DSH version must be an explicit semantic version.', 'error'))
       return {
         schemaVersion: 1, outcome: 'fail', profileDir: requestedProfile, targetDsh: options.targetDsh,
-        candidates: [], evidence: evidenceItems, diagnostics, smokeTest: { outcome: 'fail', detail: 'The target DSH version was rejected before rehearsal.' }
+        candidates: [], evidence: evidenceItems, diagnostics, smokeTest: { outcome: 'fail', detail: 'The target DSH version was rejected before rehearsal.' },
+        compositionSmoke: { outcome: 'fail', detail: 'The target DSH version was rejected before rehearsal.' },
+        packageResolutionSmoke: { outcome: 'not-run', detail: 'Target version validation failed before package resolution.' },
+        packageResolutions: [],
+        runtimeSmoke: { outcome: 'not-run', detail: 'Runtime execution was not attempted.' }
       }
     }
 
@@ -174,27 +193,65 @@ export async function runPreflight(options: PreflightOptions): Promise<Preflight
       evidenceItems.push(evidence(profileDir, 'candidate-validation', `${invalidCandidates.length} candidate value(s) were omitted because they are not a simple package@version reference.`, 'warning'))
     }
     const candidates = options.candidates.filter(safeCandidate)
+    const artifact = await resolveDshArtifact({ targetDsh: options.targetDsh, dshBin: options.dshBin, dshPackage: options.dshPackage, online: options.online, cacheDir: options.artifactCacheDir, packageManagerCacheDirs: options.packageManagerCacheDirs })
+    const artifactProvenance = [artifact.detail, `source=${artifact.source}`, `requested=${artifact.requestedVersion}`, ...(artifact.resolvedVersion === undefined ? [] : [`resolved=${artifact.resolvedVersion}`]), ...(artifact.integrity === undefined ? [] : [`integrity=${artifact.integrity}`]), ...(artifact.sha512 === undefined ? [] : [`sha512=${artifact.sha512}`])].join(' ')
+    evidenceItems.push(evidence(profileDir, 'target-artifact', artifactProvenance, artifact.kind === 'unavailable' || !artifact.targetVersionVerified ? 'warning' : undefined))
+    packageResolutions.push(evaluatePackageResolution({ packageName: '@deepseek-ai/dsh', requestedVersion: options.targetDsh, resolvedVersion: artifact.resolvedVersion, manifest: artifact.manifest, source: artifact.source, integrity: artifact.integrity, sha512: artifact.sha512, runtime: { dsh: options.targetDsh, node: process.versions.node, platform: process.platform } }))
+    const artifactDiagnostics: ReturnType<typeof analyseComposition>['diagnostics'] = artifact.kind === 'unavailable'
+      ? [{ id: 'artifact-unavailable', severity: 'warning', title: 'Target DSH artifact unavailable', evidence: [{ source: profileDir, subject: 'target-artifact', detail: artifact.detail, evidenceKind: 'static' }], explanation: 'The requested target DSH release was not available from the permitted offline artifact sources.', remediation: 'Provide --dsh-bin, --dsh-package, a local tarball, or an installed target artifact; use --online only when network resolution is explicitly intended.' }]
+      : !artifact.targetVersionVerified
+        ? [{ id: 'artifact-version-unverified', severity: 'warning', title: 'Target DSH release is unverified', evidence: [{ source: artifact.path ?? profileDir, subject: 'target-artifact', detail: artifact.detail, evidenceKind: 'static' }], explanation: 'A local artifact candidate was found, but its version was not verified as the requested release.', remediation: 'Run the harness with a locally available exact release and verify its public --version output.' }]
+        : []
+    if (artifactDiagnostics.length > 0 || artifact.kind === 'unavailable') extraWarning = true
     evidenceItems.push(evidence(profileDir, 'target-dsh', `Rehearsal target is DSH ${options.targetDsh}.`))
     evidenceItems.push(evidence(profileDir, 'candidate-plugins', `${candidates.length} validated candidate plugin reference(s) supplied; values are not copied into the real profile.`))
+    const candidateResolutions: CandidateResolution[] = []
     for (const candidate of candidates) {
       evidenceItems.push(evidence(profileDir, 'candidate-accepted', `${candidate} was accepted as an exact package@version reference.`))
-      evidenceItems.push(evidence(profileDir, 'candidate-metadata-inspected', `${candidate} was injected into the isolated package metadata and included in static manifest analysis.`))
+      const resolution = await resolveCandidateArtifact(requestedProfile, candidate, options.online, options.artifactCacheDir, options.packageManagerCacheDirs)
+      candidateResolutions.push(resolution)
+      evidenceItems.push(evidence(profileDir, resolution.status === 'resolved' ? 'candidate-artifact-resolved' : 'candidate-declaration-recorded', resolution.detail, resolution.status === 'resolved' ? undefined : 'warning'))
+      packageResolutions.push(resolution.status === 'resolved' && resolution.artifact !== undefined
+        ? evaluatePackageResolution({ packageName: resolution.artifact.name, requestedVersion: resolution.artifact.requestedVersion, resolvedVersion: resolution.artifact.installedVersion, manifest: resolution.artifact.manifest, source: resolution.artifact.source, integrity: resolution.artifact.integrity, sha512: resolution.artifact.sha512, runtime: { dsh: options.targetDsh, node: process.versions.node, platform: process.platform } })
+        : { packageName: candidateParts(candidate).name, requestedVersion: candidateParts(candidate).version, status: 'unavailable', source: 'unavailable', checks: { artifact: 'unknown' }, evidence: [{ source: profileDir, subject: candidate, detail: resolution.detail, evidenceKind: 'static', severity: 'warning' }] })
       evidenceItems.push(evidence(profileDir, 'candidate-package-not-installed', `${candidate} was not downloaded or installed.`))
       evidenceItems.push(evidence(profileDir, 'candidate-runtime-unverified', `${candidate} was not loaded, so runtime compatibility is unverified.`, 'warning'))
     }
+    const nonCompatible = packageResolutions.filter((resolution) => resolution.status !== 'compatible')
+    packageResolutionOutcome = nonCompatible.some((resolution) => resolution.status === 'incompatible') ? 'fail' : nonCompatible.length > 0 ? 'warning' : 'pass'
+    packageResolutionDetail = packageResolutions.length === 0
+      ? 'No target or candidate package artifact was available for package-resolution checks.'
+      : `${nonCompatible.length} of ${packageResolutions.length} package artifact resolution(s) are not proven compatible; no package-manager install or lifecycle was executed.`
     if (candidates.length > 0) extraWarning = true
-    evidenceItems.push(evidence(profileDir, 'network-policy', options.online ? 'Online mode was requested, but this adapter performs no network operation.' : 'Offline mode enforced; no network operation was attempted.'))
-    if (options.online) extraWarning = true
-
+    evidenceItems.push(evidence(profileDir, 'network-policy', options.online ? 'Online mode was explicitly requested; exact registry artifacts may be downloaded into Doctor-owned cache only.' : 'Offline mode enforced; no network operation was attempted.'))
     tempDirectory = await mkdtemp(join(tmpdir(), 'dsh-doctor-'))
     await prepareIsolatedProfile(input, tempDirectory, candidates, evidenceItems)
     evidenceItems.push(evidence(tempDirectory, 'isolated-profile', 'Only redacted, allow-listed composition metadata was copied into the temporary profile.'))
 
     try {
       const isolatedInput = await readProfile({ profileDir: tempDirectory })
-      const isolatedModel = runtimeForTarget(await resolveComposition(isolatedInput), options.targetDsh)
+       const staticModel = runtimeForTarget(await resolveComposition(isolatedInput), options.targetDsh)
+       const dumped = artifact.kind === 'dsh-bin' && artifact.path !== undefined ? await tryDshDump(isolatedInput, { dshBin: artifact.path }) : undefined
+       const isolatedModel: CompositionModel = dumped === undefined ? staticModel : { ...staticModel, rows: dumped.rows, adapterDiagnostics: [...staticModel.adapterDiagnostics.filter((item) => item.id !== 'runtime-composition-unavailable'), ...dumped.diagnostics], evidenceMode: 'composed' }
       const report = analyseComposition(isolatedModel)
-      diagnostics = report.diagnostics
+      const candidateDiagnostics = candidateResolutions.filter((resolution) => resolution.status === 'unavailable').map((resolution) => {
+        const candidate = resolution.candidate
+        const { name, version } = candidateParts(candidate)
+        return {
+          id: 'candidate-artifact-unavailable', severity: 'warning' as const, title: 'Candidate artifact was not resolved',
+          evidence: [{ source: tempDirectory ?? profileDir, subject: candidate, packageName: name, version, detail: resolution.detail, evidenceKind: 'static' as const }],
+          explanation: 'A package declaration is not evidence that the candidate package manifest or runtime can be loaded.',
+          remediation: 'Provide a local exact artifact or use an explicit supported online resolver, then re-run the isolated rehearsal.'
+        }
+      })
+      const packageDiagnostics = packageResolutions.filter((resolution) => resolution.status !== 'compatible').map((resolution) => ({
+        id: `package-resolution-${resolution.status}`, severity: resolution.status === 'incompatible' ? 'error' as const : 'warning' as const,
+        title: `Package resolution is ${resolution.status}`,
+        evidence: [...resolution.evidence],
+        explanation: `Package metadata resolution for ${resolution.packageName}@${resolution.requestedVersion} is ${resolution.status}.`,
+        remediation: resolution.status === 'unavailable' ? 'Provide an exact local artifact or use explicit --online registry resolution.' : 'Supply the missing runtime facts or use a compatible package version.'
+      }))
+      diagnostics = [...artifactDiagnostics, ...report.diagnostics, ...candidateDiagnostics, ...packageDiagnostics]
       const errors = diagnostics.filter((item) => item.severity === 'error').length
       const warnings = diagnostics.filter((item) => item.severity === 'warning').length
       smokeOutcome = errors > 0 ? 'fail' : warnings > 0 ? 'warning' : 'pass'
@@ -241,6 +298,10 @@ export async function runPreflight(options: PreflightOptions): Promise<Preflight
     evidence: evidenceItems,
     diagnostics,
     smokeTest: { outcome: smokeOutcome, detail: smokeDetail },
+    compositionSmoke: { outcome: smokeOutcome, detail: smokeDetail },
+    packageResolutionSmoke: { outcome: packageResolutionOutcome, detail: packageResolutionDetail },
+    packageResolutions,
+    runtimeSmoke: { outcome: 'not-run', detail: 'Third-party runtime execution requires an explicit supported isolation backend; the temporary directory is not a security sandbox.' },
     ...(before === undefined ? {} : { realProfileFingerprintBefore: before }),
     ...(after === undefined ? {} : { realProfileFingerprintAfter: after }),
     ...(tempDirectory === undefined ? {} : { tempDirectory })

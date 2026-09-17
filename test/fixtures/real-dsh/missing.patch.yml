@@ -1,0 +1,3 @@
+- id: missing-row
+  config:
+    shouldNotAppear: true

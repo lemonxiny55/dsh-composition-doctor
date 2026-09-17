@@ -1,19 +1,43 @@
-import type { BundleFact, CompositionModel, HookRegistration, PeerRequirement, PlatformRequirement, ProfileInput, UiClaim } from './types.js'
+import { basename, isAbsolute, relative } from 'node:path'
+
+import type { BundleFact, CompositionModel, HookRegistration, InstalledPackageFact, PeerRequirement, PlatformRequirement, ProfileInput, UiClaim } from './types.js'
+import { analyseComposition } from './rules.js'
 import { resolveComposition } from './composition-adapter.js'
 
-export interface SnapshotPlugin {
+export interface SnapshotPlugin { name: string; version?: string; source: string }
+export interface SnapshotRow { id?: string; name?: string; source: string; layer?: string; configKeys?: readonly string[]; replacement?: boolean }
+export interface SnapshotConflict { id: string; severity: 'info' | 'warning' | 'error'; subjects: readonly string[] }
+export interface InstalledPackageSnapshot {
   name: string
-  version?: string
-  source: string
+  requestedSpec?: string
+  installedVersion?: string
+  packageJsonSource: string
+  bundlePatch?: string
+  repository?: string
+  gitRef?: string
+  integrity?: string
+  platform?: readonly string[]
+  peerDsh?: string
+  peerCordis?: string
+  engineNode?: string
 }
 
-export interface SnapshotRow {
-  id?: string
-  name?: string
-  source: string
+export interface SnapshotV2 {
+  schemaVersion: 2
+  doctorVersion: string
+  runtime: { dsh?: string; cordis?: string; node: string; platform: string }
+  profile: { name?: string; manifestHash?: string }
+  packages: readonly InstalledPackageSnapshot[]
+  rows: readonly SnapshotRow[]
+  hooks: readonly Pick<HookRegistration, 'hook' | 'source' | 'packageName' | 'version'>[]
+  uiClaims: readonly Pick<UiClaim, 'kind' | 'value' | 'source' | 'packageName' | 'version' | 'mode' | 'contributionId'>[]
+  conflicts: readonly SnapshotConflict[]
+  packageManager: { kind?: 'pnpm' | 'npm' | 'yarn'; lockfileHash?: string }
+  /** Hash-only compatibility field for existing consumers. */
+  hashes: Readonly<Record<string, string>>
 }
 
-export interface Snapshot {
+export interface SnapshotV1 {
   schemaVersion: 1
   profile: { path: string; packageName?: string }
   plugins: readonly SnapshotPlugin[]
@@ -26,71 +50,70 @@ export interface Snapshot {
   hashes: Readonly<Record<string, string>>
 }
 
-type PackageManifest = {
-  name?: unknown
-  dependencies?: unknown
-  devDependencies?: unknown
-  peerDependencies?: unknown
-  os?: unknown
-}
+export type Snapshot = SnapshotV1 | SnapshotV2
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
+function isRecord(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value) }
+function normalizedSource(source: string, profileDir: string): string {
+  if (!isAbsolute(source)) return source.replaceAll('\\', '/')
+  const value = relative(profileDir, source).replaceAll('\\', '/')
+  return value.startsWith('../') || value === '..' ? `<EXTERNAL>/${basename(source)}` : `<PROFILE>/${value}`
 }
-
-function stringMap(value: unknown): readonly [string, string][] {
-  if (!isRecord(value)) return []
-  return Object.entries(value).flatMap(([name, version]): [string, string][] => typeof version === 'string' ? [[name, version]] : [])
-}
-
-function sortBySource<T extends { source: string }>(values: readonly T[]): T[] {
-  return [...values].sort((left, right) => left.source.localeCompare(right.source) || JSON.stringify(left).localeCompare(JSON.stringify(right)))
-}
-
-function manifestSnapshot(input: ProfileInput): { packageName?: string; plugins: SnapshotPlugin[]; peers: Snapshot['peers']; platforms: Snapshot['platforms'] } {
-  const file = input.files.find((candidate) => candidate.relativePath === 'package.json')
-  if (file === undefined) return { plugins: [], peers: [], platforms: [] }
-  try {
-    const manifest = JSON.parse(file.text) as PackageManifest
-    const packageName = typeof manifest.name === 'string' ? manifest.name : undefined
-    const plugins = [...stringMap(manifest.dependencies), ...stringMap(manifest.devDependencies)]
-      .map(([name, version]) => ({ name, version, source: file.relativePath }))
-      .sort((left, right) => left.name.localeCompare(right.name) || left.version.localeCompare(right.version))
-    const peers = packageName === undefined ? [] : [{
-      packageName,
-      source: file.relativePath,
-      ...Object.fromEntries(stringMap(manifest.peerDependencies).filter(([name]) => name === '@deepseek-ai/dsh' || name === '@deepseek-ai/cordis' || name === 'node').map(([name, range]) => [name === '@deepseek-ai/dsh' ? 'dsh' : name === '@deepseek-ai/cordis' ? 'cordis' : 'node', range]))
-    }]
-    const platforms = packageName === undefined || !Array.isArray(manifest.os) ? [] : [{ packageName, source: file.relativePath, supported: manifest.os.filter((platform): platform is string => typeof platform === 'string').sort() }]
-    return { ...(packageName === undefined ? {} : { packageName }), plugins, peers, platforms }
-  } catch {
-    return { plugins: [], peers: [], platforms: [] }
+function sortJson<T>(values: readonly T[]): T[] { return [...values].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))) }
+function packageSnapshot(fact: InstalledPackageFact): InstalledPackageSnapshot {
+  return {
+    name: fact.name,
+    ...(fact.requestedSpec === undefined ? {} : { requestedSpec: fact.requestedSpec }),
+    ...(fact.installedVersion === undefined ? {} : { installedVersion: fact.installedVersion }),
+    packageJsonSource: `<BUNDLE:${fact.name}>/package.json`,
+    ...(fact.bundlePatch === undefined ? {} : { bundlePatch: `<BUNDLE:${fact.name}>/${basename(fact.bundlePatch)}` }),
+    ...(fact.repository === undefined ? {} : { repository: fact.repository }),
+    ...(fact.gitRef === undefined ? {} : { gitRef: fact.gitRef }),
+    ...(fact.integrity === undefined ? {} : { integrity: fact.integrity }),
+    ...(fact.platform === undefined ? {} : { platform: [...fact.platform].sort() }),
+    ...(fact.peerDsh === undefined ? {} : { peerDsh: fact.peerDsh }),
+    ...(fact.peerCordis === undefined ? {} : { peerCordis: fact.peerCordis }),
+    ...(fact.engineNode === undefined ? {} : { engineNode: fact.engineNode })
   }
 }
+function packageFromBundle(bundle: BundleFact, profileDir: string): InstalledPackageSnapshot {
+  return { name: bundle.name, ...(bundle.requestedSpec === undefined ? {} : { requestedSpec: bundle.requestedSpec }), ...(bundle.version === undefined ? {} : { installedVersion: bundle.version }), packageJsonSource: normalizedSource(bundle.source, profileDir), ...(bundle.repository === undefined ? {} : { repository: bundle.repository }), ...(bundle.gitRef === undefined ? {} : { gitRef: bundle.gitRef }), ...(bundle.integrity === undefined ? {} : { integrity: bundle.integrity }) }
+}
+function lockKind(input: ProfileInput | undefined): { kind?: 'pnpm' | 'npm' | 'yarn'; lockfileHash?: string } {
+  const file = input?.files.find((item) => ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock'].includes(item.relativePath))
+  if (file === undefined) return {}
+  return { kind: file.relativePath === 'pnpm-lock.yaml' ? 'pnpm' : file.relativePath === 'yarn.lock' ? 'yarn' : 'npm', lockfileHash: file.sha256 }
+}
 
-function snapshotFromModel(model: CompositionModel, profile: Snapshot['profile'], hashes: Snapshot['hashes'], plugins: readonly SnapshotPlugin[] = []): Snapshot {
+function snapshotFromModel(model: CompositionModel, input?: ProfileInput): SnapshotV2 {
+  const profileDir = model.profileDir
+  const report = analyseComposition(model)
+  const manifest = input?.files.find((candidate) => candidate.relativePath === 'package.json')
+  let profileName: string | undefined
+  try { profileName = manifest === undefined ? undefined : ((JSON.parse(manifest.text) as { name?: unknown }).name as string | undefined) } catch { /* hash-only metadata is still valid */ }
+  const packages = model.installedPackages?.map(packageSnapshot) ?? model.bundles?.map((bundle) => packageFromBundle(bundle, profileDir)) ?? []
+  const hashes = Object.fromEntries((input?.files ?? []).filter((file) => ['package.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock'].includes(file.relativePath)).map((file) => [file.relativePath, file.sha256]))
   return {
-    schemaVersion: 1,
-    profile,
-    plugins: [...plugins].sort((left, right) => left.name.localeCompare(right.name) || (left.version ?? '').localeCompare(right.version ?? '')),
-    rows: model.rows.map(({ id, name, source }) => ({ ...(id === undefined ? {} : { id }), ...(name === undefined ? {} : { name }), source })).sort((left, right) => left.source.localeCompare(right.source) || (left.id ?? '').localeCompare(right.id ?? '')),
-    hooks: sortBySource((model.hooks ?? []).map(({ hook, source, packageName, version }) => ({ hook, source, ...(packageName === undefined ? {} : { packageName }), ...(version === undefined ? {} : { version }) }))),
-    uiClaims: sortBySource((model.uiClaims ?? []).map(({ kind, value, source, packageName, version }) => ({ kind, value, source, ...(packageName === undefined ? {} : { packageName }), ...(version === undefined ? {} : { version }) }))),
-    peers: sortBySource((model.peerRequirements ?? []).map(({ packageName, source, dsh, cordis, node }) => ({ packageName, source, ...(dsh === undefined ? {} : { dsh }), ...(cordis === undefined ? {} : { cordis }), ...(node === undefined ? {} : { node }) }))),
-    platforms: sortBySource((model.platforms ?? []).map(({ packageName, source, supported }) => ({ packageName, source, supported: [...supported].sort() }))),
-    bundles: sortBySource((model.bundles ?? []).map(({ name, version, source, gitRef, profile: bundleProfile }) => ({ name, source, ...(version === undefined ? {} : { version }), ...(gitRef === undefined ? {} : { gitRef }), ...(bundleProfile === undefined ? {} : { profile: bundleProfile }) }))),
+    schemaVersion: 2,
+    doctorVersion: '0.1.3',
+    runtime: { ...(model.runtime?.dsh === undefined ? {} : { dsh: model.runtime.dsh }), ...(model.runtime?.cordis === undefined ? {} : { cordis: model.runtime.cordis }), node: model.runtime?.node ?? process.versions.node, platform: model.runtime?.platform ?? process.platform },
+    profile: { ...(profileName === undefined ? {} : { name: profileName }), ...(manifest === undefined ? {} : { manifestHash: manifest.sha256 }) },
+    packages: sortJson(packages),
+    rows: model.rows.map((row) => ({ ...(row.id === undefined ? {} : { id: row.id }), ...(row.name === undefined ? {} : { name: row.name }), source: normalizedSource(row.source, profileDir), ...(row.layer === undefined ? {} : { layer: row.layer }), ...(row.configKeys === undefined ? {} : { configKeys: [...row.configKeys].sort() }), ...(row.replacement === true ? { replacement: true } : {}) })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    hooks: sortJson((model.hooks ?? []).map(({ hook, source, packageName, version }) => ({ hook, source: normalizedSource(source, profileDir), ...(packageName === undefined ? {} : { packageName }), ...(version === undefined ? {} : { version }) }))),
+    uiClaims: sortJson((model.uiClaims ?? []).map(({ kind, value, source, packageName, version, mode, contributionId }) => ({ kind, value, source: normalizedSource(source, profileDir), ...(packageName === undefined ? {} : { packageName }), ...(version === undefined ? {} : { version }), ...(mode === undefined ? {} : { mode }), ...(contributionId === undefined ? {} : { contributionId }) }))),
+    conflicts: sortJson(report.diagnostics.map((item) => ({ id: item.id, severity: item.severity, subjects: item.evidence.map((entry) => `${normalizedSource(entry.source, profileDir)}:${entry.subject ?? ''}`).sort() }))),
+    packageManager: lockKind(input),
     hashes
   }
 }
 
-/** Creates a structural, redacted snapshot from already allow-listed profile input or a resolved model. */
-export async function createSnapshot(input: ProfileInput | CompositionModel): Promise<Snapshot> {
-  if ('files' in input) {
-    const manifest = manifestSnapshot(input)
-    const hashes = Object.fromEntries(input.files
-      .filter((file) => file.relativePath === 'package.json' || file.relativePath === 'pnpm-lock.yaml' || file.relativePath === 'package-lock.json' || file.relativePath === 'yarn.lock')
-      .map((file) => [file.relativePath, file.sha256]))
-    return snapshotFromModel(await resolveComposition(input), { path: input.profileDir, ...(manifest.packageName === undefined ? {} : { packageName: manifest.packageName }) }, hashes, manifest.plugins)
-  }
-  return snapshotFromModel(input, { path: input.profileDir }, {}, input.bundles?.map(({ name, version, source }) => ({ name, source, ...(version === undefined ? {} : { version }) })) ?? [])
+export async function createSnapshot(input: ProfileInput | CompositionModel): Promise<SnapshotV2> {
+  if ('files' in input) return snapshotFromModel(await resolveComposition(input), input)
+  return snapshotFromModel(input)
+}
+export function isSnapshotV2(value: unknown): value is SnapshotV2 { return isRecord(value) && value.schemaVersion === 2 && Array.isArray(value.packages) && isRecord(value.profile) }
+export function isSnapshotV1(value: unknown): value is SnapshotV1 { return isRecord(value) && value.schemaVersion === 1 && Array.isArray(value.plugins) }
+export function legacyPlugins(snapshot: Snapshot): readonly SnapshotPlugin[] {
+  if (isSnapshotV1(snapshot)) return snapshot.plugins
+  return snapshot.packages.map((item) => ({ name: item.name, ...(item.installedVersion === undefined ? {} : { version: item.installedVersion }), source: item.packageJsonSource }))
 }

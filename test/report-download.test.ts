@@ -11,13 +11,15 @@ import { download, downloadRevokeDelayMs, exportReport } from '../src/client/rep
 
 const report: AnalysisReport = {
   schemaVersion: 1,
+  evidenceSchemaVersion: 2,
   generatedAt: '2026-09-16T00:00:00.000Z',
   profileDir: 'C:/safe/profile',
   evidenceMode: 'static',
+  runtimeObserved: false,
   unverifiedFindings: [],
   diagnostics: [{
     id: 'fixture', severity: 'warning', title: 'Fixture warning', explanation: 'Why this matters.',
-    evidence: [{ source: 'package.json', detail: 'Fixture evidence.' }], remediation: 'Fix the fixture.'
+    evidence: [{ source: 'package.json', detail: 'Fixture evidence.', evidenceKind: 'static' }], remediation: 'Fix the fixture.'
   }]
 }
 

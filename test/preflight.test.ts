@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 import { runPreflight } from '../src/core/preflight.js'
+import { resolve } from 'node:path'
 
 const fixture = join(process.cwd(), 'test', 'fixtures', 'preflight-real-profile')
 
@@ -16,7 +17,7 @@ describe('isolated preflight', () => {
     const before = await fingerprintSentinel()
     const result = await runPreflight({
       profileDir: fixture,
-      targetDsh: '0.1.0-rc.6',
+      targetDsh: '0.1.5-rc.1',
       candidates: [],
       allowBuild: false,
       online: false
@@ -30,7 +31,7 @@ describe('isolated preflight', () => {
   test('emits a build plan and does not build without allow-build', async () => {
     const result = await runPreflight({
       profileDir: fixture,
-      targetDsh: '0.1.0-rc.6',
+      targetDsh: '0.1.5-rc.1',
       candidates: ['example-plugin@2.0.0'],
       allowBuild: false,
       online: false
@@ -44,7 +45,7 @@ describe('isolated preflight', () => {
   test('copies only redacted metadata into a kept temporary directory', async () => {
     const result = await runPreflight({
       profileDir: fixture,
-      targetDsh: '0.1.0-rc.6',
+      targetDsh: '0.1.5-rc.1',
       candidates: [],
       allowBuild: false,
       online: false,
@@ -65,7 +66,7 @@ describe('isolated preflight', () => {
   test('adds only valid candidates to the isolated manifest and records their static-only boundary', async () => {
     const result = await runPreflight({
       profileDir: fixture,
-      targetDsh: '0.1.0-rc.6',
+      targetDsh: '0.1.5-rc.1',
       candidates: ['candidate-plugin@2.0.0-rc.1', 'not a package'],
       allowBuild: true,
       online: false,
@@ -76,12 +77,38 @@ describe('isolated preflight', () => {
       const manifest = JSON.parse(await readFile(join(tempDirectory, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
       expect(manifest.dependencies['candidate-plugin']).toBe('2.0.0-rc.1')
       expect(result.candidates).toEqual(['candidate-plugin@2.0.0-rc.1'])
-      for (const subject of ['candidate-accepted', 'candidate-metadata-inspected', 'candidate-package-not-installed', 'candidate-runtime-unverified', 'build-not-executed']) {
+      for (const subject of ['candidate-accepted', 'candidate-declaration-recorded', 'candidate-package-not-installed', 'candidate-runtime-unverified', 'build-not-executed']) {
         expect(result.evidence).toContainEqual(expect.objectContaining({ subject }))
       }
-      expect(result.diagnostics).toContainEqual(expect.objectContaining({ id: 'missing-provenance', evidence: expect.arrayContaining([expect.objectContaining({ packageName: 'candidate-plugin' })]) }))
+      expect(result.diagnostics).toContainEqual(expect.objectContaining({ id: 'candidate-artifact-unavailable', evidence: expect.arrayContaining([expect.objectContaining({ packageName: 'candidate-plugin' })]) }))
     } finally {
       await rm(tempDirectory, { recursive: true, force: true })
     }
+  })
+
+  test('uses an explicitly supplied public dump CLI in the isolated profile', async () => {
+    const result = await runPreflight({
+      profileDir: fixture,
+      targetDsh: '0.1.5-rc.1',
+      dshBin: resolve('test/fixtures/fake-dsh/dsh.mjs'),
+      candidates: [], allowBuild: false, online: false
+    })
+    expect(result.compositionSmoke.outcome).not.toBe('fail')
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ id: 'intentional-row-override' }))
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ id: 'unmatched-patch-target' }))
+    expect(result.runtimeSmoke.outcome).toBe('not-run')
+  })
+
+  test('keeps custom YAML tags while redacting secret scalars', async () => {
+    const result = await runPreflight({
+      profileDir: resolve('test/fixtures/custom-yaml-tag-js'), targetDsh: '0.1.5-rc.1', candidates: [], allowBuild: false, online: false, keepTemp: true
+    })
+    const directory = result.tempDirectory as string
+    try {
+      const text = await readFile(join(directory, 'cordis.yml'), 'utf8')
+      expect(text).toContain('!!js/function')
+      expect(text).toContain('[REDACTED]')
+      expect(text).not.toContain('visible-only-as-redacted')
+    } finally { await rm(directory, { recursive: true, force: true }) }
   })
 })

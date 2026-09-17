@@ -1,15 +1,16 @@
 import { parse } from 'yaml'
 
+import { tryDshDump } from './dsh-dump-provider.js'
 import type { BundleFact, CompositionModel, CompositionRow, Diagnostic, PeerRequirement, PlatformRequirement, ProfileFile, ProfileInput, ResolvedCompositionProvider } from './types.js'
 
-function runtimeUnavailableDiagnostic(): Diagnostic {
+function runtimeUnavailableDiagnostic(detail = 'Static YAML was read, but actual resolved composition requires a public provider.'): Diagnostic {
   return {
     id: 'runtime-composition-unavailable',
     severity: 'warning',
     title: 'Runtime composition is unavailable',
     evidence: [],
-    explanation: 'Static YAML was read, but actual resolved composition requires a public provider.',
-    remediation: 'Supply a public ResolvedCompositionProvider to resolve runtime composition.'
+    explanation: detail,
+    remediation: 'Install or explicitly provide a compatible public DSH dump provider; static findings remain bounded to the allow-listed metadata.'
   }
 }
 
@@ -18,7 +19,7 @@ function parseFailedDiagnostic(file: ProfileFile, error: unknown): Diagnostic {
     id: 'composition-parse-failed',
     severity: 'warning',
     title: 'Composition YAML could not be parsed',
-    evidence: [{ source: file.relativePath, detail: error instanceof Error ? error.message : String(error) }],
+    evidence: [{ source: file.relativePath, detail: error instanceof Error ? error.message : String(error), evidenceKind: 'static' }],
     explanation: 'This static composition source was skipped because its YAML is invalid.',
     remediation: 'Correct the YAML syntax and run the static analysis again.'
   }
@@ -31,6 +32,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isPlainObject(value: object): value is Record<string, unknown> {
   const prototype = Object.getPrototypeOf(value)
   return prototype === Object.prototype || prototype === null
+}
+
+function parseYamlValue(text: string): unknown {
+  return parse(text, {
+    customTags: [
+      { tag: 'tag:yaml.org,2002:js', resolve: (value: string) => value },
+      { tag: 'tag:yaml.org,2002:js/function', resolve: (value: string) => value }
+    ]
+  })
 }
 
 function cloneProviderValue(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
@@ -55,7 +65,7 @@ function cloneProviderValue(value: unknown, seen = new WeakMap<object, unknown>(
 }
 
 function staticRows(file: ProfileFile): CompositionRow[] {
-  const parsed: unknown = parse(file.text)
+  const parsed: unknown = parseYamlValue(file.text)
   const entries: unknown = Array.isArray(parsed) ? parsed : isRecord(parsed) ? parsed.plugins : undefined
   if (!Array.isArray(entries)) return []
 
@@ -69,27 +79,28 @@ function staticRows(file: ProfileFile): CompositionRow[] {
   })
 }
 
-function staticManifestFacts(file: ProfileFile): Pick<CompositionModel, 'bundles' | 'peerRequirements' | 'platforms'> {
-  if (file.relativePath !== 'package.json') return {}
-  try {
-    const manifest = JSON.parse(file.text) as Record<string, unknown>
-    const dependencies = manifest.dependencies !== null && typeof manifest.dependencies === 'object' ? manifest.dependencies as Record<string, unknown> : {}
-    const bundles: BundleFact[] = Object.entries(dependencies)
-      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-      .map(([name, version]) => ({ name, version, source: file.relativePath, evidenceKind: 'static' }))
-    const peer = manifest.peerDependencies !== null && typeof manifest.peerDependencies === 'object' ? manifest.peerDependencies as Record<string, unknown> : {}
-    const peerRequirements: PeerRequirement[] = typeof manifest.name === 'string' ? [{
-      packageName: manifest.name, source: file.relativePath, evidenceKind: 'static',
-      ...(typeof peer.dsh === 'string' ? { dsh: peer.dsh } : {}),
-      ...(typeof peer.cordis === 'string' ? { cordis: peer.cordis } : {}),
-      ...(typeof peer.node === 'string' ? { node: peer.node } : {})
-    }] : []
-    const supported = Array.isArray(manifest.os) ? manifest.os.filter((value): value is string => typeof value === 'string') : []
-    const platforms: PlatformRequirement[] = typeof manifest.name === 'string' && supported.length > 0 ? [{ packageName: manifest.name, source: file.relativePath, evidenceKind: 'static', supported }] : []
-    return { bundles, peerRequirements, platforms }
-  } catch {
-    return {}
+function inventoryFacts(input: ProfileInput): Pick<CompositionModel, 'bundles' | 'peerRequirements' | 'platforms'> {
+  const bundles: BundleFact[] = []
+  const peerRequirements: PeerRequirement[] = []
+  const platforms: PlatformRequirement[] = []
+  for (const fact of input.installedPackages) {
+    bundles.push({
+      name: fact.name,
+      source: fact.packageJsonSource,
+      evidenceKind: 'static',
+      ...(fact.requestedSpec === undefined ? {} : { requestedSpec: fact.requestedSpec }),
+      ...(fact.installedVersion === undefined ? {} : { version: fact.installedVersion }),
+      ...(fact.gitRef === undefined ? {} : { gitRef: fact.gitRef }),
+      ...(fact.integrity === undefined ? {} : { integrity: fact.integrity }),
+      ...(fact.repository === undefined ? {} : { repository: fact.repository }),
+      ...(fact.modifiedAt === undefined ? {} : { modifiedAt: fact.modifiedAt })
+    })
+    if (fact.peerDsh !== undefined || fact.peerCordis !== undefined || fact.engineNode !== undefined) {
+      peerRequirements.push({ packageName: fact.name, source: fact.packageJsonSource, evidenceKind: 'static', ...(fact.peerDsh === undefined ? {} : { dsh: fact.peerDsh }), ...(fact.peerCordis === undefined ? {} : { cordis: fact.peerCordis }), ...(fact.engineNode === undefined ? {} : { node: fact.engineNode }) })
+    }
+    if (fact.platform !== undefined && fact.platform.length > 0) platforms.push({ packageName: fact.name, source: fact.packageJsonSource, evidenceKind: 'static', supported: fact.platform })
   }
+  return { bundles, peerRequirements, platforms }
 }
 
 export async function resolveComposition(input: ProfileInput, provider?: ResolvedCompositionProvider): Promise<CompositionModel> {
@@ -97,19 +108,28 @@ export async function resolveComposition(input: ProfileInput, provider?: Resolve
     const providedRows = await provider.resolve(input)
     return {
       profileDir: input.profileDir,
-      rows: providedRows.map((row) => ({ ...(cloneProviderValue(row) as CompositionRow), evidenceKind: 'resolved' })),
-      adapterDiagnostics: [], evidenceMode: 'resolved', metadataCoverage: input.metadataCoverage
+      rows: providedRows.map((row) => ({ ...(cloneProviderValue(row) as CompositionRow), evidenceKind: 'composed' })),
+      adapterDiagnostics: [...input.inventoryDiagnostics], evidenceMode: 'composed', runtimeObservation: { observed: false, detail: 'A composition provider supplied a resolved tree; no runtime was started.' }, metadataCoverage: input.metadataCoverage, installedPackages: input.installedPackages
     }
   }
 
+  const resolved = await tryDshDump(input)
+  if (resolved !== undefined) {
+    return {
+      profileDir: input.profileDir,
+      rows: resolved.rows,
+      adapterDiagnostics: [...input.inventoryDiagnostics, ...resolved.diagnostics],
+      evidenceMode: 'composed',
+      runtimeObservation: { observed: false, detail: 'dump-config composes configuration without starting third-party runtime code.' },
+      metadataCoverage: input.metadataCoverage,
+      installedPackages: input.installedPackages,
+      ...inventoryFacts(input)
+    }
+  }
   const rows: CompositionRow[] = []
-  const bundles: BundleFact[] = []
-  const peerRequirements: PeerRequirement[] = []
-  const platforms: PlatformRequirement[] = []
-  const adapterDiagnostics: Diagnostic[] = [runtimeUnavailableDiagnostic()]
+  const facts = inventoryFacts(input)
+  const adapterDiagnostics: Diagnostic[] = [...input.inventoryDiagnostics, runtimeUnavailableDiagnostic()]
   for (const file of input.files) {
-    const facts = staticManifestFacts(file)
-    bundles.push(...(facts.bundles ?? [])); peerRequirements.push(...(facts.peerRequirements ?? [])); platforms.push(...(facts.platforms ?? []))
     if (file.relativePath !== 'cordis.yml' && file.relativePath !== 'cordis.patch.yml') continue
     try {
       rows.push(...staticRows(file))
@@ -117,5 +137,5 @@ export async function resolveComposition(input: ProfileInput, provider?: Resolve
       adapterDiagnostics.push(parseFailedDiagnostic(file, error))
     }
   }
-  return { profileDir: input.profileDir, rows, bundles, peerRequirements, platforms, adapterDiagnostics, evidenceMode: 'static', metadataCoverage: input.metadataCoverage }
+  return { profileDir: input.profileDir, rows, ...facts, installedPackages: input.installedPackages, adapterDiagnostics, evidenceMode: 'static', runtimeObservation: { observed: false, detail: 'Only allow-listed static metadata was inspected.' }, metadataCoverage: input.metadataCoverage }
 }

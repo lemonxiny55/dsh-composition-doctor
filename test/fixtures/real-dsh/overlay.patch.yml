@@ -1,0 +1,8 @@
+- id: shared-row
+  name: Bundle row
+  config:
+    enabled: false
+    mode: overlay
+- id: whole-config
+  config:
+    overlayOnly: true

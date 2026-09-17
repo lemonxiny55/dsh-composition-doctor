@@ -56,6 +56,8 @@ describe('published report contract', () => {
     const malformed = await responseFor(route)
     expect(malformed).toEqual({ statusCode: 404, body: '{"error":"latest_report_not_found"}\n' })
     expect(malformed.body).not.toContain(reportDir)
+    await writeFile(join(reportDir, 'report.json'), JSON.stringify({ schemaVersion: 1, diagnostics: [] }), 'utf8')
+    expect(await responseFor(route)).toEqual({ statusCode: 404, body: '{"error":"latest_report_not_found"}\n' })
   })
 
   test('makes the ScheMastery report directory field optional with a default', () => {
