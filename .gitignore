@@ -4,7 +4,9 @@ dist/
 test-results/
 coverage/
 .reports/
-reports/
+/reports/
+!test/fixtures/**/node_modules/
+!test/fixtures/**/node_modules/**
 .pnpm-store/
 .dsh-code-index/
 .env
