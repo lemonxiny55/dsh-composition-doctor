@@ -1,4 +1,4 @@
-import { basename, isAbsolute, relative } from 'node:path'
+import { basename, isAbsolute } from 'node:path'
 
 import type { BundleFact, CompositionModel, HookRegistration, InstalledPackageFact, PeerRequirement, PlatformRequirement, ProfileInput, UiClaim } from './types.js'
 import { analyseComposition } from './rules.js'
@@ -53,10 +53,15 @@ export interface SnapshotV1 {
 export type Snapshot = SnapshotV1 | SnapshotV2
 
 function isRecord(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value) }
+function slashPath(value: string): string { return value.replaceAll('\\', '/') }
+function isWindowsAbsolute(value: string): boolean { return /^[A-Za-z]:\//.test(value) }
 function normalizedSource(source: string, profileDir: string): string {
-  if (!isAbsolute(source)) return source.replaceAll('\\', '/')
-  const value = relative(profileDir, source).replaceAll('\\', '/')
-  return value.startsWith('../') || value === '..' ? `<EXTERNAL>/${basename(source)}` : `<PROFILE>/${value}`
+  const normalized = slashPath(source)
+  const root = slashPath(profileDir).replace(/\/+$/, '')
+  if (!isAbsolute(source) && !isWindowsAbsolute(normalized)) return normalized
+  if (normalized === root) return '<PROFILE>'
+  const prefix = `${root}/`
+  return normalized.startsWith(prefix) ? `<PROFILE>/${normalized.slice(prefix.length)}` : `<EXTERNAL>/${basename(normalized)}`
 }
 function sortJson<T>(values: readonly T[]): T[] { return [...values].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))) }
 function packageSnapshot(fact: InstalledPackageFact): InstalledPackageSnapshot {
