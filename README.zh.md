@@ -8,7 +8,7 @@
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的组合与升级预检工具。它读取明确指定的 profile，用可追溯证据说明可观察到的 Cordis/plugin 组合风险；不会编辑真实 profile，也不会静默扩大权限。
 
-当前 package release：`0.2.0`。
+当前 package release：`0.2.2`。
 
 ## 模型可用能力
 

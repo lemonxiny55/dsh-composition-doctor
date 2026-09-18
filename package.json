@@ -1,6 +1,6 @@
 {
   "name": "dsh-composition-doctor",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "private": false,
   "description": "Read-only DSH and Cordis composition diagnostics, snapshots, diffs, and isolated preflight.",
   "license": "MIT",

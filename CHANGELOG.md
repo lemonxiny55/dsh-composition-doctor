@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.2
+
+- Fixed the packaged `dsh-doctor` CLI entrypoint when pnpm's Windows shim supplies a non-canonical path.
+- Added a built-entrypoint regression test covering `--version` and `--help`.
+
+## 0.2.1
+
+- Fixed clean-checkout CI coverage by tracking the report schema and committed fixture packages that were previously hidden by broad ignore rules.
+- Fixed cross-platform Snapshot v2 path normalization for Windows-style paths on Linux CI.
+- Added the dsh-plugin.org listing badge to the bilingual README files.
+
 ## 0.2.0
 
 - Release the verified 0.2.0 package without changing the established diagnostic architecture or evidence boundaries.

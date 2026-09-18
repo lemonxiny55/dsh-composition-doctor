@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 
 Composition and upgrade preflight doctor for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). It reads an explicitly selected profile and explains observable Cordis/plugin composition risks with concrete evidence. It never edits a real profile or silently changes permissions.
 
-Current package release: `0.2.0`.
+Current package release: `0.2.2`.
 
 ## What the model gets
 

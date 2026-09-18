@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
@@ -173,7 +173,25 @@ export async function runCli(argv: readonly string[], io: CliIo = { write: (line
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+function canonicalPath(value: string): string {
+  try {
+    return realpathSync(value)
+  } catch {
+    return resolve(value)
+  }
+}
+
+function isMainModule(): boolean {
+  const entrypoint = process.argv[1]
+  if (entrypoint === undefined) return false
+  const modulePath = canonicalPath(fileURLToPath(import.meta.url))
+  const entrypointPath = canonicalPath(entrypoint)
+  return process.platform === 'win32'
+    ? modulePath.toLowerCase() === entrypointPath.toLowerCase()
+    : modulePath === entrypointPath
+}
+
+if (isMainModule()) {
   runCli(process.argv.slice(2)).then((exitCode) => {
     process.exitCode = exitCode
   })
