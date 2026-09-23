@@ -54,6 +54,8 @@ describe('evidence capability model', () => {
     expect(analysisReportJsonSchema.properties.runtimeObserved.type).toBe('boolean')
     expect(analysisReportJsonSchema.properties.diagnostics.items.properties.evidence.items.properties.evidenceKind.enum)
       .toEqual(['static', 'composed', 'runtime-observed'])
+    expect(analysisReportJsonSchema.required).not.toContain('compositionFacts')
+    expect(analysisReportJsonSchema.properties.compositionFacts.properties.schemaVersion.const).toBe(1)
   })
 
   test('web badge does not label dump-config as runtime verified', () => {

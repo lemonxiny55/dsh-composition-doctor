@@ -8,7 +8,7 @@ English | [中文](README.zh.md)
 
 Composition and upgrade preflight doctor for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). It reads an explicitly selected profile and explains observable Cordis/plugin composition risks with concrete evidence. It never edits a real profile or silently changes permissions.
 
-Current package release: `0.2.2`.
+Current package release: `0.3.0`.
 
 ## What the model gets
 
@@ -18,8 +18,12 @@ Current package release: `0.2.2`.
 | `dsh-doctor snapshot` | Create a redacted, comparable profile snapshot with lockfile hashes. |
 | `dsh-doctor diff` | Summarize added/removed/upgraded plugins, rows, hooks, UI claims, peers, and platforms. |
 | `dsh-doctor preflight` | Rehearse a target DSH upgrade in an isolated temporary profile. |
+| `dsh-doctor why row <id>` | Explain one row from an explicitly selected profile using observed source/layer facts. |
+| `dsh-doctor impact bundle <name>` | List rows and diagnostics directly associated with an observed bundle source. |
 
-The Web Settings page is display/export only: it reads the latest local report, shows a conflict graph, and exports JSON/Markdown. It has no repair, install, or uninstall action.
+The `why` and `impact` commands require `--profile <dir>`. Reports include an optional, versioned, redacted `compositionFacts` section shared by these commands and the Web Composition Explorer. The Web Settings page remains display/export only: it reads the latest local report, shows diagnostic and composition graphs, and exports JSON/Markdown. It has no repair, install, or uninstall action.
+
+Composition facts describe the structure returned by the public `--dump-config` command or static declarations when that is unavailable. `introduced` and `patched-by` edges describe the source chain recorded by DSH; they do not prove per-field ownership. If earlier config keys are not available, removed keys and field owners remain unknown. Route/slot ownership, runtime hook ownership, arbitrary dependencies, and possible dependents are reported as not observed/not modelled.
 
 ## Reports and evidence boundaries
 
@@ -49,6 +53,8 @@ dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\ar
 dsh-doctor snapshot --profile C:\path\to\profile --output .\reports\before.json
 dsh-doctor diff --before .\reports\before.json --after .\reports\after.json --format both
 dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
+dsh-doctor why row tool-bash --profile C:\path\to\profile
+dsh-doctor impact bundle @example/dsh-bundle --profile C:\path\to\profile
 ```
 
 Each finding is `info`, `warning`, or `error` and includes evidence, explanation, and the smallest remediation. `runtimeSmoke.status=not-run` is not a runtime PASS; `artifact-unavailable` is not `incompatible`; and a warning is not a confirmed failure.

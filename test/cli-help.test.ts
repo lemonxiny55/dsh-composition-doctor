@@ -26,7 +26,7 @@ describe('runCli', () => {
 
     await expect(runCli(argv, output.io)).resolves.toBe(0)
     expect(output.lines).toEqual([
-      'Usage: dsh-doctor <scan | snapshot | diff | preflight>'
+      'Usage: dsh-doctor <scan | snapshot | diff | preflight | why | impact>'
     ])
   })
 
@@ -34,7 +34,7 @@ describe('runCli', () => {
     const output = captureOutput()
 
     await expect(runCli(['--version'], output.io)).resolves.toBe(0)
-    expect(output.lines).toEqual(['0.2.2'])
+    expect(output.lines).toEqual(['0.3.0'])
   })
 
   it('rejects an unrecognised command', async () => {

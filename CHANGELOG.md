@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- Add read-only `why row` and bounded `impact bundle` explanations using shared, versioned composition facts.
+- Extend reports and Web Settings with a redacted bundle/source/layer/row provenance graph; older reports remain readable without the graph.
+- Keep field ownership, removed config keys, route/slot ownership, runtime hook ownership, arbitrary dependencies, and possible dependents unknown unless directly observed.
+
 ## 0.2.2
 
 - Fixed the packaged `dsh-doctor` CLI entrypoint when pnpm's Windows shim supplies a non-canonical path.

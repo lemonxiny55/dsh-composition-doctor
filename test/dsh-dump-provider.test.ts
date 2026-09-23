@@ -4,12 +4,13 @@ import { resolve } from 'node:path'
 import { tryDshDump } from '../src/core/dsh-dump-provider.js'
 import { parseDshDump } from '../src/core/dsh-dump-parser.js'
 import { readProfile } from '../src/core/profile-reader.js'
+import { analyseComposition } from '../src/core/rules.js'
 
 test('fake public dump provider returns composed rows, replacement provenance, and unmatched targets', async () => {
   const input = await readProfile({ profileDir: 'test/fixtures/healthy' })
   const result = await tryDshDump(input, { dshBin: resolve('test/fixtures/fake-dsh/dsh.mjs') })
   expect(result?.rows).toHaveLength(2)
-  expect(result?.rows[1]).toMatchObject({ id: 'bundle-row', layer: 'profile', replacement: true, evidenceKind: 'composed' })
+  expect(result?.rows[1]).toMatchObject({ id: 'bundle-row', layer: 'profile', replacement: true, replacementBasis: 'observed', evidenceKind: 'composed' })
   expect(result?.diagnostics).toContainEqual(expect.objectContaining({ id: 'unmatched-patch-target' }))
 })
 
@@ -25,4 +26,10 @@ test('successful dump-config with !!js remains composed and adds a runtime-unkno
   expect(result?.rows.every((row) => row.evidenceKind === 'composed')).toBe(true)
   expect(result?.rows.some((row) => row.evidenceKind === 'runtime-observed')).toBe(false)
   expect(result?.diagnostics).toContainEqual(expect.objectContaining({ id: 'runtime-behavior-unverified', severity: 'warning' }))
+  const report = analyseComposition({
+    profileDir: input.profileDir, rows: result!.rows, adapterDiagnostics: result!.diagnostics,
+    evidenceMode: 'composed', runtimeObservation: { observed: false }
+  })
+  expect(report.compositionFacts?.rows.every((row) => row.unknown.some((item) => item.includes('runtime behavior was not observed')))).toBe(true)
+  expect(JSON.stringify(report.compositionFacts)).not.toContain("not executed")
 })

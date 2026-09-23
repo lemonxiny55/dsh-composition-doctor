@@ -12,6 +12,10 @@ The automated contract is verified against the checked-in `test/fixtures/fake-ds
 
 Compatibility reports use four separate release states: `verified` means the real public harness passed; `expected-compatible` means only the public contract is expected to match; `unavailable` means the requested artifact could not be obtained from permitted sources; and `incompatible` means a real artifact was obtained but a contract or resolution check failed.
 
+## Explainable Composition facts
+
+Report schema version 1 remains readable. New reports may include `compositionFacts` schema version 1, an optional deterministic and redacted graph shared by `why row`, `impact bundle`, and Web Settings. Its `introduced`/`patched-by` relations are derived from the public dump provenance chain; they do not assert field-level ownership. A missing chain, layer, prior config, package mapping, or runtime observation remains unknown. Legacy reports without `compositionFacts` continue to render their diagnostic graph and show composition provenance as unavailable.
+
 ## Expected-compatible, not release-verified
 
 `@deepseek-ai/dsh@0.1.6-alpha.1` is an experimental expected-compatible target only; it is not part of the verified release range. `0.1.0-rc.6` is historical compatibility context, not a current primary target. The adapter’s public surfaces include `--dump-config`, `dsh.profile.bundles`, `dsh.bundle.patch`, `dsh.client`, `settings.plugins.tab`, and host `webServer.register`/effect registration. A release is not verified until its public artifact runs through the harness and its output is reviewed.

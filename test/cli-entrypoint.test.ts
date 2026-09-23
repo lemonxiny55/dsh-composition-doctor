@@ -13,12 +13,12 @@ describe('published CLI entrypoint', () => {
       cwd: resolve('.'),
       windowsHide: true
     })
-    expect(version.stdout.trim()).toBe('0.2.2')
+    expect(version.stdout.trim()).toBe('0.3.0')
 
     const help = await execFileAsync(process.execPath, [entrypoint, '--help'], {
       cwd: resolve('.'),
       windowsHide: true
     })
-    expect(help.stdout.trim()).toBe('Usage: dsh-doctor <scan | snapshot | diff | preflight>')
+    expect(help.stdout.trim()).toBe('Usage: dsh-doctor <scan | snapshot | diff | preflight | why | impact>')
   })
 })

@@ -1,6 +1,6 @@
 import { createElement, useEffect, useRef } from 'react'
 
-import type { AnalysisReport, Diagnostic, Severity } from '../core/types.js'
+import type { AnalysisReport, CompositionFacts, CompositionGraphNode, Diagnostic, Severity } from '../core/types.js'
 import { renderMarkdown } from '../reports/markdown.js'
 
 export const clientReportPath = '/dsh-composition-doctor/reports/latest'
@@ -39,6 +39,14 @@ export interface ReportViewModel {
   report: AnalysisReport
   counts: Readonly<Record<Severity, number>>
   graph: ConflictGraph
+  compositionGraph: { nodes: readonly CompositionGraphNode[]; edges: CompositionFacts['edges'] }
+}
+
+export interface CompositionNodeDetail {
+  title: string
+  fields: readonly { label: string; value: string }[]
+  diagnostics: readonly Diagnostic[]
+  unknown: readonly string[]
 }
 
 export function evidenceBadgeLabel(mode: AnalysisReport['evidenceMode'], runtimeObserved: boolean): string {
@@ -70,7 +78,47 @@ export function buildConflictGraph(report: AnalysisReport): ConflictGraph {
 export function toReportViewModel(report: AnalysisReport): ReportViewModel {
   const counts: Record<Severity, number> = { info: 0, warning: 0, error: 0 }
   for (const diagnostic of report.diagnostics) counts[diagnostic.severity] += 1
-  return { report, counts, graph: buildConflictGraph(report) }
+  return {
+    report, counts, graph: buildConflictGraph(report),
+    compositionGraph: { nodes: report.compositionFacts?.nodes ?? [], edges: report.compositionFacts?.edges ?? [] }
+  }
+}
+
+export function compositionNodeDetail(report: AnalysisReport, nodeId: string): CompositionNodeDetail | undefined {
+  const facts = report.compositionFacts
+  const node = facts?.nodes.find((candidate) => candidate.id === nodeId)
+  if (facts === undefined || node === undefined) return undefined
+  const relatedRows = facts.rows.filter((candidate) => {
+    if (node.rowKey !== undefined) return candidate.key === node.rowKey
+    if (node.entity === 'bundle') return candidate.packageName === node.packageName || candidate.provenance.some((step) => step.source === node.label)
+    if (node.entity === 'source') return candidate.source === node.source || candidate.provenance.some((step) => step.source === node.source)
+    if (node.entity === 'layer') return candidate.layer === node.layer && (node.layerOrder === undefined || candidate.layerOrder === node.layerOrder)
+    if (node.entity === 'diagnostic') return node.diagnosticId !== undefined && candidate.relatedDiagnosticIds.includes(node.diagnosticId)
+    return false
+  })
+  const fields: Array<{ label: string; value: string }> = [
+    { label: 'entity', value: node.entity },
+    { label: 'source', value: node.source ?? node.label },
+    { label: 'evidence', value: node.evidenceMode ?? 'unknown' }
+  ]
+  if (node.layer !== undefined) fields.push({ label: 'layer', value: node.layer })
+  if (node.layerOrder !== undefined) fields.push({ label: 'layer order', value: String(node.layerOrder) })
+  if (node.packageName !== undefined) fields.push({ label: 'package', value: `${node.packageName}${node.packageVersion === undefined ? '' : `@${node.packageVersion}`}` })
+  if (relatedRows.length > 0) {
+    fields.push({ label: 'related rows', value: relatedRows.map((row) => row.id ?? row.name ?? row.key).join(', ') })
+    fields.push({ label: 'config keys', value: relatedRows.map((row) => `${row.id ?? row.key}: ${row.configKeys.length === 0 ? '(none observed)' : row.configKeys.join(', ')}`).join('\n') })
+    fields.push({ label: 'replacement', value: relatedRows.map((row) => `${row.id ?? row.key}: ${row.replacement.state} (${row.replacement.basis})`).join('\n') })
+    fields.push({ label: 'provenance', value: relatedRows.map((row) => `${row.id ?? row.key}: ${row.provenance.length === 0 ? 'unknown' : row.provenance.map((item) => `${item.relation}: ${item.source} (${item.basis})`).join(' → ')}`).join('\n') })
+  }
+  const relatedDiagnosticIds = new Set(relatedRows.flatMap((row) => row.relatedDiagnosticIds))
+  const rowDiagnostics = report.diagnostics.filter((item) => relatedDiagnosticIds.has(item.id))
+  const nodeDiagnostic = node.diagnosticId === undefined ? [] : report.diagnostics.filter((item) => item.id === node.diagnosticId)
+  return {
+    title: node.label,
+    fields,
+    diagnostics: [...new Map([...rowDiagnostics, ...nodeDiagnostic].map((item) => [item.id, item])).values()],
+    unknown: [...new Set([...relatedRows.flatMap((row) => row.unknown), ...facts.unknownSurfaces])]
+  }
 }
 
 function renderConflictGraph(document: Document, graph: ConflictGraph): HTMLElement {
@@ -93,6 +141,83 @@ function renderConflictGraph(document: Document, graph: ConflictGraph): HTMLElem
     list.append(item)
   }
   section.append(list)
+  return section
+}
+
+export function createCompositionExplorer(document: Document, report: AnalysisReport): HTMLElement {
+  const section = document.createElement('section')
+  section.setAttribute('aria-labelledby', 'dsh-composition-doctor-explorer')
+  const heading = document.createElement('h3')
+  heading.id = 'dsh-composition-doctor-explorer'
+  heading.textContent = 'Composition Explorer'
+  section.append(heading)
+  const facts = report.compositionFacts
+  const graph = facts === undefined ? { nodes: [], edges: [] } : { nodes: facts.nodes, edges: facts.edges }
+  if (graph.nodes.length === 0) {
+    const message = document.createElement('p')
+    message.textContent = 'Composition provenance is unavailable in this legacy report.'
+    section.append(message)
+  } else {
+    const list = document.createElement('ul')
+    for (const node of graph.nodes.filter((value) => value.entity !== 'diagnostic')) {
+      const item = document.createElement('li')
+      const select = button(document, `${node.entity}: ${node.label}`, () => {
+        const detail = compositionNodeDetail(report, node.id)
+        if (detail === undefined) return
+        const panel = section.querySelector('[data-composition-detail]')
+        if (panel === null) return
+        panel.replaceChildren()
+        const title = document.createElement('h4')
+        title.textContent = detail.title
+        panel.append(title)
+        const fields = document.createElement('dl')
+        for (const field of detail.fields) {
+          const term = document.createElement('dt'); term.textContent = field.label
+          const value = document.createElement('dd'); value.textContent = field.value
+          fields.append(term, value)
+        }
+        panel.append(fields)
+        const diagnostics = document.createElement('ul')
+        for (const diagnostic of detail.diagnostics) {
+          const entry = document.createElement('li')
+          entry.textContent = `[${diagnostic.severity}] ${diagnostic.title}: ${diagnostic.explanation}`
+          diagnostics.append(entry)
+        }
+        if (detail.diagnostics.length > 0) panel.append(diagnostics)
+        const unknown = document.createElement('ul')
+        for (const value of detail.unknown) { const entry = document.createElement('li'); entry.textContent = value; unknown.append(entry) }
+        if (detail.unknown.length > 0) {
+          const unknownTitle = document.createElement('h4'); unknownTitle.textContent = 'Unknown / not modelled'
+          panel.append(unknownTitle, unknown)
+        }
+      })
+      select.dataset.compositionNode = node.id
+      item.append(select)
+      const outgoing = graph.edges.filter((edge) => edge.from === node.id)
+      if (outgoing.length > 0) {
+        const relationships = document.createElement('ul')
+        for (const edge of outgoing) {
+          const target = graph.nodes.find((candidate) => candidate.id === edge.to)
+          if (target === undefined || target.entity === 'diagnostic') continue
+          const relationship = document.createElement('li')
+          relationship.textContent = `${edge.relation} → ${target.label} (${edge.basis}; ${edge.evidenceMode})`
+          relationships.append(relationship)
+        }
+        item.append(relationships)
+      }
+      list.append(item)
+    }
+    section.append(list)
+    const detail = document.createElement('section')
+    detail.dataset.compositionDetail = 'true'
+    detail.setAttribute('aria-live', 'polite')
+    detail.textContent = 'Select a bundle, source, layer, or row to inspect its evidence.'
+    section.append(detail)
+    const unknownList = document.createElement('ul')
+    for (const value of facts?.unknownSurfaces ?? []) { const entry = document.createElement('li'); entry.textContent = value; unknownList.append(entry) }
+    const unknownTitle = document.createElement('h4'); unknownTitle.textContent = 'Other surfaces'
+    section.append(unknownTitle, unknownList)
+  }
   return section
 }
 
@@ -187,6 +312,7 @@ export function createReportView(document: Document = globalThis.document, trans
     status.textContent = `Generated: ${report.generatedAt}. Profile: ${report.profileDir}. Diagnostics: ${model.counts.error} error, ${model.counts.warning} warning, ${model.counts.info} info.`
     status.append(document.createTextNode(' '), badge)
     root.append(renderConflictGraph(document, model.graph))
+    root.append(createCompositionExplorer(document, report))
     const list = document.createElement('ul')
     for (const diagnostic of report.diagnostics) {
       const item = document.createElement('li')

@@ -8,7 +8,7 @@
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的组合与升级预检工具。它读取明确指定的 profile，用可追溯证据说明可观察到的 Cordis/plugin 组合风险；不会编辑真实 profile，也不会静默扩大权限。
 
-当前 package release：`0.2.2`。
+当前 package release：`0.3.0`。
 
 ## 模型可用能力
 
@@ -18,8 +18,12 @@
 | `dsh-doctor snapshot` | 生成脱敏、可比较的 profile 快照及 lockfile 哈希。 |
 | `dsh-doctor diff` | 汇总新增、删除或升级的插件，以及 rows、hooks、UI 声明、peer 和平台变化。 |
 | `dsh-doctor preflight` | 在独立临时 profile 中演练目标 DSH 升级。 |
+| `dsh-doctor why row <id>` | 基于明确指定的 profile 中可观察的来源和 layer 信息解释一个 row。 |
+| `dsh-doctor impact bundle <name>` | 列出有直接来源关联证据的 bundle rows 和 diagnostics。 |
 
-Web Settings 页面仅供显示与导出：它读取最新本地报告、展示冲突图，并导出 JSON/Markdown；不提供修复、安装或卸载操作。
+`why` 和 `impact` 都需要 `--profile <目录>`。报告新增可选、版本化且脱敏的 `compositionFacts`，由这两个命令和 Web Composition Explorer 共用。Web Settings 仍然只读：它读取最新本地报告，展示诊断图和 composition 图，并导出 JSON/Markdown；不提供修复、安装或卸载操作。
+
+Composition facts 描述公开 `--dump-config` 返回的结构；无法取得时仅描述静态声明。`introduced` 和 `patched-by` 表示 DSH 输出中记录的来源链，不证明逐字段 owner。若未观察到前层 config key，移除的键和字段 owner 必须是 unknown。route/slot ownership、runtime hook ownership、任意依赖和可能的 dependents 会标记为未观察/未建模。
 
 ## 报告与证据边界
 
@@ -49,6 +53,8 @@ dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\ar
 dsh-doctor snapshot --profile C:\path\to\profile --output .\reports\before.json
 dsh-doctor diff --before .\reports\before.json --after .\reports\after.json --format both
 dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
+dsh-doctor why row tool-bash --profile C:\path\to\profile
+dsh-doctor impact bundle @example/dsh-bundle --profile C:\path\to\profile
 ```
 
 每条诊断均为 `info`、`warning` 或 `error`，并附带 evidence、explanation 和最小 remediation。`runtimeSmoke.status=not-run` 不等于 runtime PASS；`artifact-unavailable` 不等于 `incompatible`；warning 也不等于已确认失败。

@@ -87,6 +87,7 @@ export function parseDshDump(stdout: string, stderr = ''): ParsedDump {
     const provenance = provenanceParts(typeof object.source === 'string' ? object.source : provenanceHints[index] ?? legacyProvenanceHints[index])
     const source = typeof object.source === 'string' ? object.source : provenance.source ?? '<DSH dump>'
     const config = object.config
+    const explicitReplacement = object.replacement === true || object.overridden === true
     const row: CompositionRow = {
       ...(typeof object.id === 'string' ? { id: object.id } : {}),
       ...(typeof object.name === 'string' ? { name: object.name } : typeof object.plugin === 'string' ? { name: object.plugin } : {}),
@@ -96,7 +97,9 @@ export function parseDshDump(stdout: string, stderr = ''): ParsedDump {
       ...(typeof object.layer === 'string' ? { layer: object.layer } : {}),
       ...(typeof object.layerOrder === 'number' ? { layerOrder: object.layerOrder } : {}),
       ...(provenance.provenance === undefined ? {} : { provenance: provenance.provenance }),
-      ...(object.replacement === true || object.overridden === true || (provenance.provenance !== undefined && provenance.provenance.length > 1) || (typeof object.id === 'string' && seenIds.has(object.id) && seenIds.get(object.id) !== source) ? { replacement: true } : {})
+      ...(explicitReplacement || (provenance.provenance !== undefined && provenance.provenance.length > 1) || (typeof object.id === 'string' && seenIds.has(object.id) && seenIds.get(object.id) !== source)
+        ? { replacement: true, replacementBasis: explicitReplacement ? 'observed' as const : 'derived' as const }
+        : {})
     }
     if (row.id !== undefined) seenIds.set(row.id, row.source)
     return [row]

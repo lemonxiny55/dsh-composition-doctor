@@ -1,5 +1,6 @@
 import type { AnalysisReport, BundleFact, CompositionModel, Diagnostic, Evidence, EvidenceKind, PatchWrite } from './types.js'
 import { satisfies as semverSatisfies } from 'semver'
+import { buildCompositionFacts, redactDiagnosticPaths } from './composition-provenance.js'
 
 function evidence(source: string, subject: string, detail: string, evidenceKind: EvidenceKind, packageName?: string, version?: string): Evidence {
   return { source, subject, detail, evidenceKind, ...(packageName === undefined ? {} : { packageName }), ...(version === undefined ? {} : { version }) }
@@ -153,6 +154,18 @@ export function analyseComposition(model: CompositionModel): AnalysisReport {
   }
   diagnostics.sort((left, right) => left.id.localeCompare(right.id) || left.title.localeCompare(right.title) || left.evidence[0]?.source.localeCompare(right.evidence[0]?.source ?? '') || 0)
   const evidenceMode = runtimeObserved ? 'runtime-observed' : requestedMode === 'runtime-observed' ? 'composed' : requestedMode
-  const unverifiedFindings = diagnostics.filter((item) => item.id === 'runtime-composition-unavailable' || item.evidence.some((entry) => entry.evidenceKind === 'static')).map((item) => item.id)
-  return { schemaVersion: 1, evidenceSchemaVersion: 2, generatedAt: new Date().toISOString(), profileDir: model.profileDir, evidenceMode, runtimeObserved, ...(model.metadataCoverage === undefined ? {} : { metadataCoverage: model.metadataCoverage }), unverifiedFindings, diagnostics }
+  const redactedDiagnostics = redactDiagnosticPaths(diagnostics, model)
+  const unverifiedFindings = redactedDiagnostics.filter((item) => item.id === 'runtime-composition-unavailable' || item.evidence.some((entry) => entry.evidenceKind === 'static')).map((item) => item.id)
+  const reportBase: AnalysisReport = {
+    schemaVersion: 1,
+    evidenceSchemaVersion: 2,
+    generatedAt: new Date().toISOString(),
+    profileDir: '<PROFILE>',
+    evidenceMode,
+    runtimeObserved,
+    ...(model.metadataCoverage === undefined ? {} : { metadataCoverage: model.metadataCoverage }),
+    unverifiedFindings,
+    diagnostics: redactedDiagnostics
+  }
+  return { ...reportBase, compositionFacts: buildCompositionFacts({ ...model, evidenceMode }, redactedDiagnostics) }
 }

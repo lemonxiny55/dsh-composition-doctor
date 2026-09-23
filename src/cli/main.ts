@@ -8,6 +8,7 @@ import { diffSnapshots, renderSnapshotDiffMarkdown } from '../core/diff.js'
 import { readProfile } from '../core/profile-reader.js'
 import { createSnapshot, isSnapshotV1, isSnapshotV2, type Snapshot } from '../core/snapshot.js'
 import { analyseComposition } from '../core/rules.js'
+import { compositionBundleImpact, findCompositionRow } from '../core/composition-provenance.js'
 import { renderJson } from '../reports/json.js'
 import { renderMarkdown } from '../reports/markdown.js'
 import { resolveReportDirectory } from '../reports/location.js'
@@ -17,8 +18,8 @@ export interface CliIo {
   write(line: string): void
 }
 
-const usage = 'Usage: dsh-doctor <scan | snapshot | diff | preflight>'
-const commands = new Set(['scan', 'snapshot', 'diff', 'preflight'])
+const usage = 'Usage: dsh-doctor <scan | snapshot | diff | preflight | why | impact>'
+const commands = new Set(['scan', 'snapshot', 'diff', 'preflight', 'why', 'impact'])
 
 function packageVersion(): string {
   try {
@@ -144,6 +145,65 @@ async function preflight(argv: readonly string[], io: CliIo): Promise<number> {
   return result.outcome === 'fail' ? 1 : 0
 }
 
+async function why(argv: readonly string[], io: CliIo): Promise<number> {
+  if (argv[0] !== 'row' || argv[1] === undefined || argv[1].startsWith('--')) return invalid(io, 'why requires: why row <id> --profile <dir>')
+  const profile = option(argv, '--profile')
+  if (profile === undefined) return invalid(io, 'why row requires --profile')
+  const model = await resolveComposition(await readProfile({ profileDir: resolve(profile) }))
+  const report = analyseComposition(model)
+  const row = findCompositionRow(report.compositionFacts!, argv[1])
+  if (row === undefined) {
+    io.write(`${JSON.stringify({ schemaVersion: 1, query: { entity: 'row', id: argv[1] }, outcome: 'not-found', evidenceMode: report.evidenceMode, unknown: ['No row with this id was present in the selected profile evidence.'] }, null, 2)}\n`)
+    return 0
+  }
+  const relatedDiagnostics = report.diagnostics.filter((item) => row.relatedDiagnosticIds.includes(item.id))
+  const unknown = [...row.unknown]
+  if (row.replacement.state === 'yes' && row.removedConfigKeys === undefined) unknown.push('removed config keys are unknown; prior layer config was not fully observed')
+  io.write(`${JSON.stringify({
+    schemaVersion: 1,
+    query: { entity: 'row', id: argv[1] },
+    outcome: 'found',
+    evidenceMode: report.evidenceMode,
+    row: {
+      id: row.id,
+      ...(row.name === undefined ? {} : { name: row.name }),
+      effectiveObservedStructure: { configKeys: row.configKeys, values: 'not included; values may contain sensitive or runtime-dependent data' },
+      source: row.source,
+      sourceBasis: row.sourceBasis,
+      ...(row.layer === undefined ? {} : { layer: row.layer }),
+      ...(row.layerOrder === undefined ? {} : { layerOrder: row.layerOrder }),
+      provenance: row.provenance,
+      replacement: row.replacement,
+      configKeysBasis: row.configKeysBasis,
+      ...(row.removedConfigKeys === undefined ? {} : { removedConfigKeys: row.removedConfigKeys }),
+      ...(row.packageName === undefined ? {} : { package: { name: row.packageName, ...(row.packageVersion === undefined ? {} : { version: row.packageVersion }) } }),
+      evidenceMode: row.evidenceMode
+    },
+    relatedDiagnostics,
+    unknown: [...new Set(unknown)].sort()
+  }, null, 2)}\n`)
+  return 0
+}
+
+async function impact(argv: readonly string[], io: CliIo): Promise<number> {
+  if (argv[0] !== 'bundle' || argv[1] === undefined || argv[1].startsWith('--')) return invalid(io, 'impact requires: impact bundle <name> --profile <dir>')
+  const profile = option(argv, '--profile')
+  if (profile === undefined) return invalid(io, 'impact bundle requires --profile')
+  const model = await resolveComposition(await readProfile({ profileDir: resolve(profile) }))
+  const report = analyseComposition(model)
+  const result = compositionBundleImpact(report, argv[1])
+  const known = report.compositionFacts?.nodes.some((node) => node.entity === 'bundle' && node.label === argv[1]) === true
+  io.write(`${JSON.stringify({
+    ...result,
+    outcome: known ? (result.rows.length > 0 ? 'observed-contributions' : 'no-observable-rows') : 'bundle-not-observed',
+    observed: known,
+    patchContributions: result.rows.filter((row) => row.provenance.some((item) => item.source === argv[1] && item.relation === 'patched-by')),
+    overrides: result.rows.filter((row) => row.replacement.state === 'yes' && row.provenance.some((item) => item.source === argv[1] && item.relation === 'patched-by')),
+    unknown: [...new Set(result.unknown)]
+  }, null, 2)}\n`)
+  return 0
+}
+
 export async function runCli(argv: readonly string[], io: CliIo = { write: (line) => console.log(line) }): Promise<number> {
   const command = argv[0]
 
@@ -166,7 +226,9 @@ export async function runCli(argv: readonly string[], io: CliIo = { write: (line
     if (command === 'scan') return await scan(argv.slice(1), io)
     if (command === 'snapshot') return await snapshot(argv.slice(1), io)
     if (command === 'diff') return await diff(argv.slice(1), io)
-    return await preflight(argv.slice(1), io)
+    if (command === 'preflight') return await preflight(argv.slice(1), io)
+    if (command === 'why') return await why(argv.slice(1), io)
+    return await impact(argv.slice(1), io)
   } catch (error: unknown) {
     io.write(error instanceof Error ? error.message : String(error))
     return 1

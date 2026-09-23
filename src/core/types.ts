@@ -79,7 +79,75 @@ export interface CompositionRow {
   layerOrder?: number
   configKeys?: readonly string[]
   replacement?: boolean
+  replacementBasis?: 'observed' | 'derived'
   provenance?: readonly string[]
+}
+
+export type FactBasis = 'observed' | 'derived'
+
+export interface CompositionSourceFact {
+  source: string
+  sourceBasis: 'observed'
+  relation: 'introduced' | 'patched-by'
+  basis: FactBasis
+}
+
+export interface CompositionReplacementFact {
+  state: 'yes' | 'no' | 'unknown'
+  basis: FactBasis | 'unknown'
+}
+
+export interface CompositionRowFact {
+  entity: 'row'
+  key: string
+  id?: string
+  name?: string
+  source: string
+  sourceBasis: 'observed'
+  layer?: string
+  layerOrder?: number
+  provenance: readonly CompositionSourceFact[]
+  replacement: CompositionReplacementFact
+  configKeys: readonly string[]
+  configKeysBasis: FactBasis
+  evidenceMode: EvidenceKind
+  packageName?: string
+  packageVersion?: string
+  relatedDiagnosticIds: readonly string[]
+  removedConfigKeys?: readonly string[]
+  unknown: readonly string[]
+}
+
+export interface CompositionGraphNode {
+  id: string
+  entity: 'bundle' | 'source' | 'layer' | 'row' | 'diagnostic'
+  label: string
+  source?: string
+  layer?: string
+  layerOrder?: number
+  packageName?: string
+  packageVersion?: string
+  evidenceMode?: EvidenceKind
+  rowKey?: string
+  diagnosticId?: string
+}
+
+export interface CompositionGraphEdge {
+  from: string
+  to: string
+  relation: 'introduced' | 'patched-by' | 'source-of' | 'contains' | 'diagnosed-by' | 'package-source'
+  basis: FactBasis
+  evidenceMode: EvidenceKind
+}
+
+/** Additive, redacted report facts used by CLI explanations and the Web graph. */
+export interface CompositionFacts {
+  schemaVersion: 1
+  evidenceMode: EvidenceMode
+  nodes: readonly CompositionGraphNode[]
+  edges: readonly CompositionGraphEdge[]
+  rows: readonly CompositionRowFact[]
+  unknownSurfaces: readonly string[]
 }
 
 export interface UiClaim {
@@ -172,6 +240,8 @@ export interface AnalysisReport {
   metadataCoverage?: MetadataCoverage
   unverifiedFindings: readonly string[]
   diagnostics: readonly Diagnostic[]
+  /** Absent on legacy reports written before the 0.3 composition facts contract. */
+  compositionFacts?: CompositionFacts
 }
 
 export interface ResolvedCompositionProvider {
