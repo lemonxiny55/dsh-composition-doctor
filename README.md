@@ -6,11 +6,44 @@
 
 English | [中文](README.zh.md)
 
-Composition and upgrade preflight doctor for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). It reads an explicitly selected profile and explains observable Cordis/plugin composition risks with concrete evidence. It never edits a real profile or silently changes permissions.
+> **See exactly why your DSH profile looks this way.**
+>
+> DSH profiles are layered compositions. `dsh-doctor` shows which sources and layers contributed the rows you see, what the available evidence proves, and what remains unknown.
 
-Current package release: `0.3.0`.
+**Read-only · Offline by default · No automatic fixes or installs**
 
-## What the model gets
+Composition and upgrade preflight doctor for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). It reads an explicitly selected profile and explains observable Cordis/plugin composition facts with concrete evidence. It never edits a real profile or silently changes permissions.
+
+## Quick start
+
+```powershell
+npm install -g dsh-composition-doctor
+npx @deepseek-ai/dsh plugin --profile web add dsh-composition-doctor
+dsh-doctor --version
+```
+
+Then ask a concrete question about the composition:
+
+```powershell
+dsh-doctor why row tool-bash --profile C:\path\to\profile
+dsh-doctor impact bundle @example/dsh-bundle --profile C:\path\to\profile
+```
+
+`why` explains one observed row and its source chain. `impact bundle` lists rows and diagnostics directly associated with that bundle source.
+
+```mermaid
+flowchart LR
+  B["Bundle<br/>direct association"] --> S["Source"]
+  S -->|"introduced / patched-by"| R["Row"]
+  L["Layer"] -->|"contains"| R
+  R -->|"diagnosed-by"| D["Diagnostic"]
+```
+
+These links appear only when the report has supporting facts; missing ownership is left unknown.
+
+[Commands](#what-it-explains) · [Evidence boundaries](#reports-and-evidence-boundaries) · [Safety & privacy](#safety-and-privacy) · [Compatibility](#support-and-limitations) · [Development](#development)
+
+## What it explains
 
 | Command | Purpose |
 |---|---|
@@ -35,17 +68,11 @@ Reports declare `evidenceMode`: `static` means allow-listed manifest/patch/packa
 
 `scan --fail-on never|info|warning|error` controls the scan exit code. The default is `never`: warnings and errors remain in the report without changing the exit code. `info` fails on any diagnostic, `warning` fails on warnings or errors, and `error` fails only on errors. Malformed arguments return exit code 2; operational failures return 1.
 
-## Install
+After changing a profile, restart the Web UI (`npx @deepseek-ai/dsh web`) before scanning it again.
 
-```powershell
-npm install -g dsh-composition-doctor
-npx @deepseek-ai/dsh plugin --profile web add dsh-composition-doctor
-dsh-doctor --version
-```
+Each finding is `info`, `warning`, or `error` and includes evidence, explanation, and the smallest remediation. `runtimeSmoke.status=not-run` is not a runtime PASS; `artifact-unavailable` is not `incompatible`; and a warning is not a confirmed failure.
 
-Restart the Web UI (`npx @deepseek-ai/dsh web`) after changing a profile.
-
-## Example
+## More commands
 
 ```powershell
 dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\profile --publish
@@ -53,11 +80,7 @@ dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\ar
 dsh-doctor snapshot --profile C:\path\to\profile --output .\reports\before.json
 dsh-doctor diff --before .\reports\before.json --after .\reports\after.json --format both
 dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
-dsh-doctor why row tool-bash --profile C:\path\to\profile
-dsh-doctor impact bundle @example/dsh-bundle --profile C:\path\to\profile
 ```
-
-Each finding is `info`, `warning`, or `error` and includes evidence, explanation, and the smallest remediation. `runtimeSmoke.status=not-run` is not a runtime PASS; `artifact-unavailable` is not `incompatible`; and a warning is not a confirmed failure.
 
 ## Safety and privacy
 

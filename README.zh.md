@@ -6,11 +6,44 @@
 
 [English](README.md) | 中文
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的组合与升级预检工具。它读取明确指定的 profile，用可追溯证据说明可观察到的 Cordis/plugin 组合风险；不会编辑真实 profile，也不会静默扩大权限。
+> **看清你的 DSH profile 为什么最终是现在这个样子。**
+>
+> DSH profile 是由多层 composition 组合出来的。`dsh-doctor` 展示哪些 source 和 layer 带来了当前 row、现有证据能证明什么，以及哪些仍然未知。
 
-当前 package release：`0.3.0`。
+**只读 · 默认离线 · 不自动修复或安装**
 
-## 模型可用能力
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的组合与升级预检工具。它读取明确指定的 profile，用可追溯证据解释可观察到的 Cordis/plugin composition；不会编辑真实 profile，也不会静默扩大权限。
+
+## 快速开始
+
+```powershell
+npm install -g dsh-composition-doctor
+npx @deepseek-ai/dsh plugin --profile web add dsh-composition-doctor
+dsh-doctor --version
+```
+
+然后直接问一个 composition 问题：
+
+```powershell
+dsh-doctor why row tool-bash --profile C:\path\to\profile
+dsh-doctor impact bundle @example/dsh-bundle --profile C:\path\to\profile
+```
+
+`why` 解释一个可观察 row 的来源链；`impact bundle` 列出有直接 source 关联证据的 rows 和 diagnostics。
+
+```mermaid
+flowchart LR
+  B["Bundle<br/>直接关联"] --> S["Source"]
+  S -->|"introduced / patched-by"| R["Row"]
+  L["Layer"] -->|"contains"| R
+  R -->|"diagnosed-by"| D["Diagnostic"]
+```
+
+只有报告中存在支持 facts 时才展示这些关系；没有 ownership 证据的部分仍标为 unknown。
+
+[命令能力](#模型可解释什么) · [证据边界](#报告与证据边界) · [安全与隐私](#安全与隐私) · [兼容范围](#支持范围与限制) · [开发](#开发)
+
+## 模型可解释什么
 
 | 命令 | 作用 |
 |---|---|
@@ -35,17 +68,11 @@ Composition facts 描述公开 `--dump-config` 返回的结构；无法取得时
 
 `scan --fail-on never|info|warning|error` 控制 scan 的退出码。默认是 `never`：warning 和 error 会写入报告，但不改变退出码；`info` 遇到任意诊断时退出 1，`warning` 遇到 warning 或 error 时退出 1，`error` 只在 error 时退出 1。参数错误退出 2，执行失败退出 1。
 
-## 安装
+更改 profile 后重启 Web UI（`npx @deepseek-ai/dsh web`），再重新扫描。
 
-```powershell
-npm install -g dsh-composition-doctor
-npx @deepseek-ai/dsh plugin --profile web add dsh-composition-doctor
-dsh-doctor --version
-```
+每条诊断均为 `info`、`warning` 或 `error`，并附带 evidence、explanation 和最小 remediation。`runtimeSmoke.status=not-run` 不等于 runtime PASS；`artifact-unavailable` 不等于 `incompatible`；warning 也不等于已确认失败。
 
-更改 profile 后重启 Web UI：`npx @deepseek-ai/dsh web`。
-
-## 示例
+## 更多命令
 
 ```powershell
 dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\profile --publish
@@ -53,11 +80,7 @@ dsh-doctor scan --profile C:\path\to\profile --format both --output .\reports\ar
 dsh-doctor snapshot --profile C:\path\to\profile --output .\reports\before.json
 dsh-doctor diff --before .\reports\before.json --after .\reports\after.json --format both
 dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
-dsh-doctor why row tool-bash --profile C:\path\to\profile
-dsh-doctor impact bundle @example/dsh-bundle --profile C:\path\to\profile
 ```
-
-每条诊断均为 `info`、`warning` 或 `error`，并附带 evidence、explanation 和最小 remediation。`runtimeSmoke.status=not-run` 不等于 runtime PASS；`artifact-unavailable` 不等于 `incompatible`；warning 也不等于已确认失败。
 
 ## 安全与隐私
 
