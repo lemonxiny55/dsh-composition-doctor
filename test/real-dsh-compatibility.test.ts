@@ -60,6 +60,7 @@ async function runRealRelease(binary: string, extraPatch = false): Promise<RealR
 
 function normalizeGolden(text: string, run: Pick<RealRun, 'profile' | 'home' | 'overlay' | 'missingOverlay'>): string {
   return text
+    .replaceAll('\r\n', '\n')
     .replaceAll(join(run.profile, 'cordis.patch.yml'), '<PROFILE_PATCH>')
     .replaceAll(join(run.home, 'cordis.patch.yml'), '<HOME_PATCH>')
     .replaceAll(run.overlay, '<CLI_PATCH>')
@@ -75,7 +76,9 @@ async function assertRelease(binary: string, release: string, goldenName: string
   const run = await runRealRelease(binary)
   expect(run.version).toBe(release)
   expect(run.stderr).toBe('')
-  expect(normalizeGolden(run.stdout, run)).toBe(await readFile(join(fixtureRoot, goldenName), 'utf8'))
+  // Git may check out the golden with CRLF on Windows; compare the same
+  // transport newline convention while retaining every structural assertion.
+  expect(normalizeGolden(run.stdout, run)).toBe((await readFile(join(fixtureRoot, goldenName), 'utf8')).replaceAll('\r\n', '\n'))
 
   const parsed = parseDshDump(run.stdout, run.stderr)
   expect(parsed.rows).toHaveLength(3)

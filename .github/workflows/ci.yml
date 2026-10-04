@@ -27,7 +27,7 @@ jobs:
         if: matrix.node-version == 24
         run: |
           node -e "const fs=require('node:fs');fs.mkdirSync('.ci-dsh',{recursive:true});fs.writeFileSync('.ci-dsh/package.json',JSON.stringify({name:'doctor-ci-dsh',private:true}))"
-          pnpm --dir .ci-dsh add @deepseek-ai/dsh@0.2.0-rc.2 --ignore-scripts
+          pnpm --dir .ci-dsh add @deepseek-ai/dsh@0.2.0-rc.2 --ignore-scripts --ignore-workspace
       - run: pnpm typecheck
       - run: pnpm test
         env:
