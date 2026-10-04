@@ -162,7 +162,7 @@ dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
 
 ## 支持范围与限制
 
-2026-10-03 核对的 npm `latest` 为 `@deepseek-ai/dsh@0.2.0-rc.2`，已在 Windows 和 Ubuntu 24.04（WSL）+ Node.js 24.19.0 重新运行公开 `--version`/`--dump-config` harness。Doctor 的完整 RC 门槛与 packed fresh-install smoke 已在 Windows/Node 24、Ubuntu/Node 20.19.5 和 24.19.0 通过。`0.1.5-rc.1`/`rc.2` golden 仅作历史证据，没有 artifact 的测试会 skip。`0.2.1-alpha.1` 属于 expected-compatible/experimental，未验证。Doctor 支持 Node.js `>=20`；CI 配置覆盖 Windows/Ubuntu + Node.js 20/22/24，并在 Node.js 24 运行当前 DSH harness。Node 22 与 hosted CI 仍待运行。此声明不代表任意第三方插件可用，也不代表观察过插件 runtime/UI 注册。[兼容性细节](docs/compatibility.md) · [RC 验证记录](docs/release-evidence/0.4.0.md)。
+2026-10-03 核对的 npm `latest` 为 `@deepseek-ai/dsh@0.2.0-rc.2`，已在 Windows 和 Ubuntu 24.04（WSL）+ Node.js 24.19.0 重新运行公开 `--version`/`--dump-config` harness。Doctor 的完整 RC 门槛与 packed fresh-install smoke 已在本地 Windows/Node 24、Ubuntu/Node 20.19.5 和 24.19.0 通过。2026-10-04，[Hosted CI 的 Windows/Ubuntu × Node 20/22/24 共六个作业全部通过](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37187050083)，包含 packed fresh-install smoke；两个 Node 24 作业均通过当前 DSH 公开 harness。`0.1.5-rc.1`/`rc.2` golden 仅作历史证据，没有 artifact 的测试会 skip。`0.2.1-alpha.1` 属于 expected-compatible/experimental，未验证。Doctor 支持 Node.js `>=20`。此声明不代表任意第三方插件可用，也不代表观察过插件 runtime/UI 注册。[兼容性细节](docs/compatibility.md) · [RC 验证记录](docs/release-evidence/0.4.0.md)。
 
 ## 开发
 
