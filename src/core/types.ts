@@ -64,12 +64,15 @@ export interface InstalledPackageFact {
   modifiedAt?: string
   platform?: readonly string[]
   peerDsh?: string
+  dshPeers?: Readonly<Record<string, string>>
   peerCordis?: string
   engineNode?: string
   lifecycleScripts?: readonly string[]
 }
 
 export interface CompositionRow {
+  /** Static syntax only; updates must never be counted as duplicate inserts. */
+  operation?: 'insert' | 'update' | 'declare'
   id?: string
   name?: string
   source: string
@@ -98,6 +101,7 @@ export interface CompositionReplacementFact {
 }
 
 export interface CompositionRowFact {
+  operation?: 'insert' | 'update' | 'declare'
   entity: 'row'
   key: string
   id?: string
@@ -189,6 +193,7 @@ export interface PeerRequirement {
   source: string
   evidenceKind: EvidenceKind
   dsh?: string
+  dshPackage?: string
   cordis?: string
   node?: string
 }
@@ -242,6 +247,7 @@ export interface AnalysisReport {
   diagnostics: readonly Diagnostic[]
   /** Absent on legacy reports written before the 0.3 composition facts contract. */
   compositionFacts?: CompositionFacts
+  failureExplanation?: import('./failure-explainer.js').FailureResult
 }
 
 export interface ResolvedCompositionProvider {

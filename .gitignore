@@ -11,3 +11,7 @@ coverage/
 .dsh-code-index/
 .env
 .env.*
+!test/fixtures/failures/**/error.log
+/.ci-dsh/
+/rc-artifacts/
+/*.tgz

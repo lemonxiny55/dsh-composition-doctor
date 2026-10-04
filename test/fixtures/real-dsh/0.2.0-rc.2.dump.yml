@@ -1,0 +1,14 @@
+# == dsh-doctor-real-bundle, patched by <PROFILE_PATCH>, <HOME_PATCH>, <CLI_PATCH>
+- id: shared-row
+  name: Bundle row
+  config:
+    enabled: false
+    mode: overlay
+# == dsh-doctor-real-bundle, patched by <PROFILE_PATCH>, <CLI_PATCH>
+- id: whole-config
+  config:
+    overlayOnly: true
+# == dsh-doctor-real-bundle
+- id: runtime-unknown
+  config:
+    handler: !!js () => 'not executed'

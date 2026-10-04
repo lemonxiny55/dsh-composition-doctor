@@ -33,6 +33,7 @@ function parseVersion(value: string): readonly [number, number, number] | undefi
 function satisfiesRange(version: string, range: string): boolean | undefined {
   if (parseVersion(version) === undefined || range.trim().length === 0) return undefined
   try {
+    if (['workspace:^', 'workspace:~', 'workspace:*'].includes(range)) return true
     return semverSatisfies(version, range, { includePrerelease: true })
   } catch {
     return undefined
@@ -50,7 +51,8 @@ function peerDiagnostics(model: CompositionModel): Diagnostic[] {
     for (const [fact, range] of [['dsh', peer.dsh], ['cordis', peer.cordis], ['node', peer.node]] as const) {
       if (range === undefined) continue
       const actual = runtime[fact]
-      const item = evidence(peer.source, `${peer.packageName}:${fact}`, `requires ${fact} ${range}; observed ${actual ?? 'unknown'}`, peer.evidenceKind, peer.packageName)
+      const label = fact === 'dsh' ? peer.dshPackage ?? fact : fact
+      const item = evidence(peer.source, `${peer.packageName}:${fact}`, `requires ${label} ${range}; observed ${actual ?? 'unknown'}`, peer.evidenceKind, peer.packageName)
       if (actual === undefined) {
         diagnostics.push(diagnostic('peer-version-facts-unavailable', 'warning', 'Runtime version fact is unavailable', [item], `The ${fact} version needed to evaluate ${peer.packageName} was not supplied.`, 'Provide the selected runtime version or treat this static compatibility finding as unproven.'))
         continue
@@ -87,12 +89,16 @@ function rowKeys(row: CompositionModel['rows'][number]): Set<string> {
 function rowDiagnostics(rows: CompositionModel['rows']): Diagnostic[] {
   const diagnostics: Diagnostic[] = []
   for (const [id, group] of groups(rows.filter((row) => row.id !== undefined), (row) => row.id as string)) {
+    const inserts = group.filter((row) => row.operation === 'insert' || row.operation === 'declare')
+    if (inserts.length > 1) {
+      diagnostics.push(diagnostic('duplicate-loader-declarations', 'warning', 'Multiple loader declarations introduce the same row id', inserts.map((row) => evidence(row.source, id, 'An independent declaration introduces this loader id.', row.evidenceKind, row.name)), 'Separate insertion declarations share a loader id; static evidence does not prove the final loader outcome.', 'Review the bundle and profile insertion paths; retain the intended declaration and configuration manually.'))
+    }
     const layers = groups(group, (row) => row.layer ?? row.source)
     if (layers.size === 1 && group.length > 1) {
       diagnostics.push(diagnostic('duplicate-row-in-same-layer', 'warning', 'Duplicate composition row id in one layer', group.map((row) => evidence(row.source, id, `row id ${id} is declared more than once in the same layer`, row.evidenceKind, row.name)), `The DSH public row semantics do not establish which declaration should win within one layer for ${id}.`, 'Give the row a unique id or verify the final resolved tree with a public dump provider.'))
       continue
     }
-    if (layers.size < 2) continue
+    if (layers.size < 2 || inserts.length === group.length) continue
     const ordered = [...group].sort((left, right) => (left.layerOrder ?? Number.MAX_SAFE_INTEGER) - (right.layerOrder ?? Number.MAX_SAFE_INTEGER))
     const previous = ordered[ordered.length - 2]
     const current = ordered[ordered.length - 1]

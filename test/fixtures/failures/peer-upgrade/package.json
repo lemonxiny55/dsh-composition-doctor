@@ -1,0 +1,1 @@
+{ "name": "minimized-peer-upgrade", "private": true, "dsh": { "profile": { "bundles": ["dshmarket"] } } }

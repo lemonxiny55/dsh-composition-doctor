@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "outcome": "explained",
+  "profile": "<PROFILE>",
+  "runtime": "not-observed",
+  "input": {
+    "log": "reported-by-log",
+    "recognizedSignatures": 1,
+    "truncated": false
+  },
+  "explanations": [
+    {
+      "pattern": "duplicate-loader-entry",
+      "detectedFailure": "Duplicate loader entry id: session-cleaner",
+      "origin": "reported-by-log",
+      "matchedEntity": {
+        "kind": "row",
+        "id": "session-cleaner"
+      },
+      "causeStatus": "observable-condition",
+      "observableCause": "session-cleaner is introduced by 2 separate loader declarations. Both inserts use the same id; the final loader outcome is unknown until composition/runtime is observed.",
+      "provenancePaths": [
+        {
+          "source": "<PROFILE>/node_modules/session-cleaner/cordis.patch.yml",
+          "layer": "dsh.profile.bundles[0]: session-cleaner",
+          "packageName": "session-cleaner",
+          "rowId": "session-cleaner",
+          "rowKey": "row:58e6650eea06daf5",
+          "provenance": [
+            {
+              "source": "session-cleaner",
+              "sourceBasis": "observed",
+              "relation": "introduced",
+              "basis": "derived"
+            }
+          ],
+          "evidence": "static"
+        },
+        {
+          "source": "cordis.patch.yml",
+          "layer": "cordis.patch.yml",
+          "rowId": "session-cleaner",
+          "rowKey": "row:aa279078fdd4162d",
+          "provenance": [
+            {
+              "source": "cordis.patch.yml",
+              "sourceBasis": "observed",
+              "relation": "introduced",
+              "basis": "derived"
+            }
+          ],
+          "evidence": "static"
+        }
+      ],
+      "evidenceLevel": "static",
+      "unknowns": [
+        "Runtime failure and plugin behavior: not observed / not-run.",
+        "Final composition: unknown. Home/CLI overlays and installation-level bundles are not inspected by the default static reader."
+      ],
+      "manualRemediation": "Review the listed bundle declarations and profile patch. Keep one intended insertion for this id after checking its config; use why row and impact bundle for details.",
+      "relatedDiagnostics": [
+        {
+          "id": "duplicate-loader-declarations",
+          "severity": "warning",
+          "title": "Multiple loader declarations introduce the same row id",
+          "evidence": [
+            {
+              "source": "<PROFILE>/node_modules/session-cleaner/cordis.patch.yml",
+              "subject": "session-cleaner",
+              "detail": "An independent declaration introduces this loader id.",
+              "evidenceKind": "static",
+              "packageName": "session-cleaner"
+            },
+            {
+              "source": "cordis.patch.yml",
+              "subject": "session-cleaner",
+              "detail": "An independent declaration introduces this loader id.",
+              "evidenceKind": "static",
+              "packageName": "session-cleaner"
+            }
+          ],
+          "explanation": "Separate insertion declarations share a loader id; static evidence does not prove the final loader outcome.",
+          "remediation": "Review the bundle and profile insertion paths; retain the intended declaration and configuration manually."
+        }
+      ]
+    }
+  ],
+  "unknowns": [
+    "A recognized log signature is a report, not trusted composition or runtime evidence.",
+    "An absence of supported findings is not a healthy runtime verification."
+  ],
+  "nextStep": "Review the named source paths. If the cause is unknown, verify the profile selection and compare a public dump, why row, snapshot/diff or preflight."
+}

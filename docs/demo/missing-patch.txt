@@ -1,0 +1,16 @@
+DSH Composition Doctor — Failure Explanation
+
+Profile: <PROFILE>; runtime: not-observed
+
+Bundle patch is unavailable: dsh-cad
+reported-by-log; evidence: static
+
+Cause: The declared bundle has missing, invalid or disallowed patch metadata. Its manifest declaration does not supply an observable loader contribution.
+
+Path 1: bundle dsh-cad → <PROFILE>/node_modules/dsh-cad/package.json
+  layer: unknown
+
+Unknown: runtime not observed / not-run; final composition unknown.
+Next: Review the bundle manifest → dsh.bundle.patch and packaged YAML file. Check the publisher tarball contents; do not substitute or execute a file suggested by the log.
+
+Doctor did not modify your profile.

@@ -6,23 +6,63 @@
 
 [English](README.md) | 中文
 
-> **看清你的 DSH profile 为什么最终是现在这个样子。**
+> **安装或升级插件后，DSH 启动失败了？**
 >
-> DSH profile 是由多层 composition 组合出来的。`dsh-doctor` 展示哪些 source 和 layer 带来了当前 row、现有证据能证明什么，以及哪些仍然未知。
+> 找出涉及哪个 bundle、profile layer 或 override，并看清现有证据究竟能证明什么。
+
+```sh
+dsh-doctor diagnose --profile ./web --log dsh-error.log
+```
+
+```text
+Duplicate loader entry id: session-cleaner
+reported-by-log; evidence: static
+
+Cause: session-cleaner is introduced by 2 separate loader declarations.
+
+Path 1: bundle session-cleaner → <PROFILE>/node_modules/session-cleaner/cordis.patch.yml
+  layer: dsh.profile.bundles[0]: session-cleaner → row: session-cleaner
+Path 2: cordis.patch.yml
+  layer: cordis.patch.yml → row: session-cleaner
+
+Unknown: runtime not observed / not-run; final composition unknown.
+Doctor did not modify your profile.
+```
+
+来自最小化的[公开重复加载案例](https://github.com/deepseek-ai/deepseek-harness/discussions/2889)的输出摘录。静态声明能指出冲突路径，不能证明 runtime 已崩溃。[完整 Demo 与来源](docs/failure-cases.md) · [25 秒终端 Demo](scripts/failure-demo.mjs)
+
+**解释故障 · 追踪组合来源 · 预检升级风险**
 
 **只读 · 默认离线 · 不自动修复或安装**
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）的组合与升级预检工具。它读取明确指定的 profile，用可追溯证据解释可观察到的 Cordis/plugin composition；不会编辑真实 profile，也不会静默扩大权限。
+面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）。一条命令把已支持的故障关联到实体、可观察的来源路径和人工下一步；没有证据的部分保留 unknown。
 
 ## 快速开始
 
-```powershell
-npm install -g dsh-composition-doctor
-npx @deepseek-ai/dsh plugin --profile web add dsh-composition-doctor
-dsh-doctor --version
+**0.4.0 目前为本地 RC，尚未发布。** 公开的 0.3.0 没有 `diagnose`。请从本 checkout 构建，并安装审查后的本地 tarball：
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm pack
+pnpm add -g ./dsh-composition-doctor-0.4.0.tgz --ignore-scripts
+dsh-doctor check --profile ./web
+dsh-doctor diagnose --profile ./web --log dsh-error.log
 ```
 
-然后直接问一个 composition 问题：
+`--profile` 接受明确的目录，而不是 DSH profile 昵称。标准 Web profile 可使用 `~/.dsh/profiles/web`，PowerShell 中使用 `$HOME/.dsh/profiles/web`。CLI 不需要 Web UI 正常启动，也不需要安装 host 插件。需要 Web Explorer 时，通过 DSH plugin 命令添加审查后的本地 tarball，再显式导出到插件配置的 Doctor 报告目录。
+
+支持管道和结构化输出：
+
+```sh
+dsh web 2>&1 | dsh-doctor diagnose --profile ./web
+dsh-doctor diagnose --profile ./web --log - --format json
+dsh-doctor diagnose --profile ./web --format markdown
+```
+
+默认 `diagnose`/`check` 只读取静态元数据，不启动 DSH、不导入插件代码、不执行 lifecycle script、不访问网络。`check` 是复用相同 reader 的极简别名，同样需要明确指定 profile。JSON 返回版本化的 explanation；`--output <目录>` 或 `--report-dir <目录>` 写入含 `failureExplanation` 和 `compositionFacts` 的兼容分析报告及 Markdown。输出目录必须位于 profile 外；默认不写报告。
+
+继续追踪具体来源：
 
 ```powershell
 dsh-doctor why row tool-bash --profile C:\path\to\profile
@@ -41,12 +81,46 @@ flowchart LR
 
 只有报告中存在支持 facts 时才展示这些关系；没有 ownership 证据的部分仍标为 unknown。
 
+## 真实故障案例
+
+1. **bundle 与手写 insert 重复加载。** [DSH Discussion #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889) 报告了插件管理把依赖加入 bundle 列表，而旧手写 row 仍然存在的情况。最小化回归把 `session-cleaner` 关联到两条 insert 路径。应一起检查 bundle 声明和手写 patch；普通 patch update 不会被算成第二次引入。
+2. **已安装包缺少它声明的 patch。** [DSH Discussion #6539](https://github.com/deepseek-ai/deepseek-harness/discussions/6539) 的评论报告了 npm `dsh-cad` 缺少 YAML overlay。最小化 fixture 的输出摘录：
+
+```text
+Bundle patch is unavailable: dsh-cad
+reported-by-log; evidence: static
+
+Path 1: bundle dsh-cad → <PROFILE>/node_modules/dsh-cad/package.json
+
+Next: Review the bundle manifest → dsh.bundle.patch and packaged YAML file.
+Doctor did not modify your profile.
+```
+
+这些是公开故障模式的脱敏结构重建，不是用户 profile 原件，也不声称重放了现场 runtime。同一日志缺少匹配元数据时，测试要求返回 `unknown`。
+
+## 支持的解释
+
+| 模式 | 可观察依据 | 边界 |
+|---|---|---|
+| duplicate loader id | 独立 insert/base-row 声明，或 composed tree 中重复 row | 普通 update、patched source chain 不算第二次插入，不推断 runtime 已拒绝。 |
+| bundle 不可解析 | profile 声明及有边界的本地解析 finding | 安装级内置 bundle、外部 link 可能在其他位置可解析。 |
+| bundle patch 缺失/无效 | manifest 与缺失、无效或不允许读取的 YAML | 不跟随日志建议的文件或命令。 |
+| patch target 缺失 | patch target 没有本地 insert，或公开 dump finding | home/CLI/内置 layer 可能仍提供该 row。 |
+| peer/version 不兼容 | 已安装 DSH-family peer range 与独立指定的 `--dsh-version <精确版本>`；Node engine 使用 Doctor 当前进程版本 | 日志中的版本不是 runtime fact，不猜测可用插件版本。 |
+| config replacement/override | config patch 声明、composed provenance/replacement fact | 未观察到的有效键丢失、字段 owner 保持 unknown。 |
+
+升级后的 ownership 变化继续通过 `snapshot`/`diff`、`preflight` 检查；任意 route/slot/hook 根因不进入本版 pattern。`diagnose --composed` 显式启用既有的隔离公开 dump adapter，不安装包、不启动插件 runtime、不把静态声明升级为 composed evidence。复制 profile/provider 的覆盖可能不完整，runtime 仍是 `not-observed`。
+
+日志限制 1 MiB；显式文件只接受 `.log`、`.txt`、`.out`，拒绝 secret、workspace、session、chat 路径。最多保留 32 个日志 signature 和 50 条元数据解释；JSON 标明截断，人类输出默认显示前三条。退出 0 表示生成了报告，包括 `unknown`/`no-match`，不表示 DSH 健康；执行失败返回 1，参数错误返回 2。
+
 [命令能力](#模型可解释什么) · [证据边界](#报告与证据边界) · [安全与隐私](#安全与隐私) · [兼容范围](#支持范围与限制) · [开发](#开发)
 
 ## 模型可解释什么
 
 | 命令 | 作用 |
 |---|---|
+| `dsh-doctor diagnose` | 从明确选择的元数据解释支持的故障，可用不可信日志聚焦。默认人类可读，支持 JSON/Markdown。 |
+| `dsh-doctor check` | 使用同一有边界的 reader 检查明确指定的 profile，并提示如何进一步 diagnose。 |
 | `dsh-doctor scan` | 检测重复 Cordis row、hook 顺序风险、UI slot/route 所有权冲突、bundle 覆盖、peer/platform 不匹配和 profile 漂移。 |
 | `dsh-doctor snapshot` | 生成脱敏、可比较的 profile 快照及 lockfile 哈希。 |
 | `dsh-doctor diff` | 汇总新增、删除或升级的插件，以及 rows、hooks、UI 声明、peer 和平台变化。 |
@@ -88,7 +162,7 @@ dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
 
 ## 支持范围与限制
 
-real-release harness 已使用真实公开 CLI 验证 `@deepseek-ai/dsh@0.1.5-rc.1` 和 `@deepseek-ai/dsh@0.1.5-rc.2`。`0.1.6-alpha.1` 仍只是 expected-compatible/experimental；`0.1.0-rc.6` 仅作历史兼容背景，不是当前 verified target。artifact 不可用时会明确报告 unavailable，绝不记为 PASS。已验证开发环境为 Windows + Node.js 24；CI 覆盖 Ubuntu + Node.js 20。只有公开 metadata 能提供 hook/UI ownership 时才会确认，否则标为 unverified；临时目录不是安全 sandbox。
+2026-10-03 核对的 npm `latest` 为 `@deepseek-ai/dsh@0.2.0-rc.2`，已在 Windows 和 Ubuntu 24.04（WSL）+ Node.js 24.19.0 重新运行公开 `--version`/`--dump-config` harness。Doctor 的完整 RC 门槛与 packed fresh-install smoke 已在本地 Windows/Node 24、Ubuntu/Node 20.19.5 和 24.19.0 通过。2026-10-04，[Hosted CI 的 Windows/Ubuntu × Node 20/22/24 共六个作业全部通过](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37187050083)，包含 packed fresh-install smoke；两个 Node 24 作业均通过当前 DSH 公开 harness。`0.1.5-rc.1`/`rc.2` golden 仅作历史证据，没有 artifact 的测试会 skip。`0.2.1-alpha.1` 属于 expected-compatible/experimental，未验证。Doctor 支持 Node.js `>=20`。此声明不代表任意第三方插件可用，也不代表观察过插件 runtime/UI 注册。[兼容性细节](docs/compatibility.md) · [RC 验证记录](docs/release-evidence/0.4.0.md)。
 
 ## 开发
 
@@ -96,6 +170,8 @@ real-release harness 已使用真实公开 CLI 验证 `@deepseek-ai/dsh@0.1.5-rc
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm pack
+pnpm smoke:pack ./dsh-composition-doctor-0.4.0.tgz
 ```
 
 仅在 checkout 开发时，构建完成后使用 `node dist/cli/main.js` 运行 CLI。

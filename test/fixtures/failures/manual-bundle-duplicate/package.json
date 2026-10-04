@@ -1,0 +1,5 @@
+{
+  "name": "minimized-duplicate-case", "private": true,
+  "dependencies": { "session-cleaner": "1.0.0" },
+  "dsh": { "profile": { "bundles": ["session-cleaner"] } }
+}

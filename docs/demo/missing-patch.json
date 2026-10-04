@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "outcome": "explained",
+  "profile": "<PROFILE>",
+  "runtime": "not-observed",
+  "input": {
+    "log": "reported-by-log",
+    "recognizedSignatures": 1,
+    "truncated": false
+  },
+  "explanations": [
+    {
+      "pattern": "bundle-patch-unavailable",
+      "detectedFailure": "Bundle patch is unavailable: dsh-cad",
+      "origin": "reported-by-log",
+      "matchedEntity": {
+        "kind": "package",
+        "id": "dsh-cad"
+      },
+      "causeStatus": "observable-condition",
+      "observableCause": "The declared bundle has missing, invalid or disallowed patch metadata. Its manifest declaration does not supply an observable loader contribution.",
+      "provenancePaths": [
+        {
+          "source": "<PROFILE>/node_modules/dsh-cad/package.json",
+          "packageName": "dsh-cad",
+          "provenance": [],
+          "evidence": "static"
+        }
+      ],
+      "evidenceLevel": "static",
+      "unknowns": [
+        "Runtime failure and plugin behavior: not observed / not-run.",
+        "Final composition: unknown. Home/CLI overlays and installation-level bundles are not inspected by the default static reader."
+      ],
+      "manualRemediation": "Review the bundle manifest → dsh.bundle.patch and packaged YAML file. Check the publisher tarball contents; do not substitute or execute a file suggested by the log.",
+      "relatedDiagnostics": [
+        {
+          "id": "bundle-patch-invalid",
+          "severity": "warning",
+          "title": "Declared bundle patch is missing, unreadable, oversized or invalid YAML.",
+          "evidence": [
+            {
+              "source": "<PROFILE>/node_modules/dsh-cad/package.json",
+              "packageName": "dsh-cad",
+              "subject": "dsh-cad",
+              "detail": "Declared bundle patch is missing, unreadable, oversized or invalid YAML.",
+              "evidenceKind": "static"
+            }
+          ],
+          "explanation": "Declared bundle patch is missing, unreadable, oversized or invalid YAML.",
+          "remediation": "Review the declared bundle patch and selected profile. Doctor did not change either."
+        },
+        {
+          "id": "bundle-patch-missing",
+          "severity": "warning",
+          "title": "Bundle patch metadata is missing",
+          "evidence": [
+            {
+              "source": "<PROFILE>/node_modules/dsh-cad/package.json",
+              "detail": "The declared dsh.bundle.patch file is not readable.",
+              "evidenceKind": "static",
+              "packageName": "dsh-cad",
+              "subject": "dsh-cad"
+            }
+          ],
+          "explanation": "The declared dsh.bundle.patch file is not readable.",
+          "remediation": "Install the declared bundle in the selected profile or provide the missing public manifest/patch metadata."
+        }
+      ]
+    }
+  ],
+  "unknowns": [
+    "A recognized log signature is a report, not trusted composition or runtime evidence.",
+    "An absence of supported findings is not a healthy runtime verification."
+  ],
+  "nextStep": "Review the named source paths. If the cause is unknown, verify the profile selection and compare a public dump, why row, snapshot/diff or preflight."
+}

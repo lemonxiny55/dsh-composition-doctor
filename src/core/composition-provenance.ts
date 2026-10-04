@@ -63,6 +63,7 @@ export function buildCompositionFacts(model: CompositionModel, diagnostics: read
   const nodes = new Map<string, CompositionGraphNode>()
   const edgeMap = new Map<string, CompositionGraphEdge>()
   const rows: CompositionRowFact[] = []
+  const keyOccurrences = new Map<string, number>()
   const packages = model.installedPackages ?? []
   const reportMode = model.evidenceMode ?? 'static'
 
@@ -76,7 +77,10 @@ export function buildCompositionFacts(model: CompositionModel, diagnostics: read
 
   for (const [index, row] of model.rows.entries()) {
     const rowIdentity = row.id ?? row.name ?? `${normalizeCompositionSource(row.source, model.profileDir)}:${index}`
-    const rowKey = `row:${stableKey(`${rowIdentity}|${normalizeCompositionSource(row.source, model.profileDir)}|${row.layer ?? ''}|${row.layerOrder ?? index}`)}`
+    const keyBase = `row:${stableKey(`${rowIdentity}|${normalizeCompositionSource(row.source, model.profileDir)}|${row.layer ?? ''}|${row.layerOrder ?? index}`)}`
+    const occurrence = keyOccurrences.get(keyBase) ?? 0
+    keyOccurrences.set(keyBase, occurrence + 1)
+    const rowKey = occurrence === 0 ? keyBase : `${keyBase}:${occurrence}`
     const chain = row.provenance === undefined ? [] : [...row.provenance]
     const chainSources = chain.map((source) => normalizeCompositionSource(source, model.profileDir))
     const source = normalizeCompositionSource(row.source, model.profileDir)
@@ -109,6 +113,7 @@ export function buildCompositionFacts(model: CompositionModel, diagnostics: read
       }))
     const fact: CompositionRowFact = {
       entity: 'row', key: rowKey,
+      ...(row.operation === undefined ? {} : { operation: row.operation }),
       ...(row.id === undefined ? {} : { id: row.id }),
       ...(row.name === undefined ? {} : { name: row.name }),
       source,

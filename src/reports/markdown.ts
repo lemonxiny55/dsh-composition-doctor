@@ -1,4 +1,5 @@
 import type { AnalysisReport, Diagnostic, Evidence } from '../core/types.js'
+import { renderFailure } from './failure.js'
 
 function formatEvidence(item: Evidence): string {
   const subject = item.subject === undefined ? '' : ` — ${item.subject}`
@@ -13,7 +14,8 @@ function formatDiagnostic(item: Diagnostic): string {
 
 export function renderMarkdown(report: AnalysisReport): string {
   const summary = ['error', 'warning', 'info'].map((severity) => `${severity}: ${report.diagnostics.filter((item) => item.severity === severity).length}`).join(', ')
-  const body = report.diagnostics.length === 0 ? 'No diagnostics were produced.' : report.diagnostics.map(formatDiagnostic).join('\n\n')
+  const diagnosticBody = report.diagnostics.length === 0 ? 'No diagnostics were produced.' : report.diagnostics.map(formatDiagnostic).join('\n\n')
+  const body = report.failureExplanation === undefined ? diagnosticBody : `${renderFailure(report.failureExplanation, true)}\n${diagnosticBody}`
   const coverage = report.metadataCoverage === undefined ? '' : `\nMetadata coverage: ${report.metadataCoverage.mode}; unscanned: ${report.metadataCoverage.unscannedSurfaces.join('; ')}\n`
   return `# DSH Composition Doctor Report\n\nSchema: ${report.schemaVersion}; evidence schema: ${report.evidenceSchemaVersion}\n\nProfile: \`${report.profileDir}\`\n\nGenerated: ${report.generatedAt}\n\nEvidence mode: ${report.evidenceMode}; runtime observed: ${report.runtimeObserved ? 'yes' : 'no'}\n${coverage}\nSummary: ${summary}\n\n${body}\n`
 }

@@ -1,8 +1,8 @@
 {
   "name": "dsh-composition-doctor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": false,
-  "description": "Read-only DSH and Cordis composition diagnostics, snapshots, diffs, and isolated preflight.",
+  "description": "Explain DSH plugin failures through observable composition paths. Read-only, offline by default, with snapshots and upgrade preflight.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -50,7 +50,9 @@
     "test": "pnpm build && vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsc && node scripts/build-client.mjs",
-    "dsh-doctor": "node dist/cli/main.js"
+    "dsh-doctor": "node dist/cli/main.js",
+    "smoke:pack": "node scripts/pack-smoke.mjs",
+    "demo:failure": "node scripts/failure-demo.mjs"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1",

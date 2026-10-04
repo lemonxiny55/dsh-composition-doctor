@@ -80,7 +80,19 @@ async function atomicWrite(path: string, bytes: Uint8Array): Promise<void> {
   const temporaryPath = `${path}.${randomBytes(12).toString('hex')}.partial`
   try {
     await writeFile(temporaryPath, bytes, { flag: 'wx' })
-    await rename(temporaryPath, path)
+    try {
+      await rename(temporaryPath, path)
+    } catch (error) {
+      // Windows can refuse a competing rename after another downloader has
+      // already published this exact artifact. Accept only identical regular
+      // files; never unlink an existing cache entry to work around the race.
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EPERM' && code !== 'EEXIST') throw error
+      const existing = await lstat(path).catch(() => undefined)
+      if (!existing?.isFile() || existing.isSymbolicLink()) throw error
+      const published = await readFile(path).catch(() => undefined)
+      if (published === undefined || !published.equals(Buffer.from(bytes))) throw error
+    }
   } finally {
     await rm(temporaryPath, { force: true }).catch(() => undefined)
   }

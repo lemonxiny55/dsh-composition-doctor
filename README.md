@@ -6,23 +6,63 @@
 
 English | [中文](README.zh.md)
 
-> **See exactly why your DSH profile looks this way.**
+> **DSH failed after installing or upgrading a plugin?**
 >
-> DSH profiles are layered compositions. `dsh-doctor` shows which sources and layers contributed the rows you see, what the available evidence proves, and what remains unknown.
+> Find which bundle, profile layer, or override is involved—and what the evidence actually proves.
+
+```sh
+dsh-doctor diagnose --profile ./web --log dsh-error.log
+```
+
+```text
+Duplicate loader entry id: session-cleaner
+reported-by-log; evidence: static
+
+Cause: session-cleaner is introduced by 2 separate loader declarations.
+
+Path 1: bundle session-cleaner → <PROFILE>/node_modules/session-cleaner/cordis.patch.yml
+  layer: dsh.profile.bundles[0]: session-cleaner → row: session-cleaner
+Path 2: cordis.patch.yml
+  layer: cordis.patch.yml → row: session-cleaner
+
+Unknown: runtime not observed / not-run; final composition unknown.
+Doctor did not modify your profile.
+```
+
+Excerpt from a minimized [public duplicate-loading case](https://github.com/deepseek-ai/deepseek-harness/discussions/2889). Static declarations expose the conflicting paths; they do not prove a runtime crash. [Full demos and sources](docs/failure-cases.md) · [25-second terminal demo](scripts/failure-demo.mjs)
+
+**Explain failures · Trace composition provenance · Preview upgrade risks**
 
 **Read-only · Offline by default · No automatic fixes or installs**
 
-Composition and upgrade preflight doctor for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). It reads an explicitly selected profile and explains observable Cordis/plugin composition facts with concrete evidence. It never edits a real profile or silently changes permissions.
+For [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). One command connects a supported failure to its entity, observable source paths and a manual next step. Missing evidence stays unknown.
 
 ## Quick start
 
-```powershell
-npm install -g dsh-composition-doctor
-npx @deepseek-ai/dsh plugin --profile web add dsh-composition-doctor
-dsh-doctor --version
+**0.4.0 is a local release candidate, not yet published.** The public 0.3.0 package does not have `diagnose`. Build this checkout and install the reviewed tarball locally:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm pack
+pnpm add -g ./dsh-composition-doctor-0.4.0.tgz --ignore-scripts
+dsh-doctor check --profile ./web
+dsh-doctor diagnose --profile ./web --log dsh-error.log
 ```
 
-Then ask a concrete question about the composition:
+`--profile` is an explicit directory, not a DSH profile nickname. For the standard Web profile, use `~/.dsh/profiles/web` (PowerShell: `$HOME/.dsh/profiles/web`). CLI use needs no running Web UI or plugin installation. To use the Web Explorer, add the reviewed local tarball through DSH's plugin command, then opt in to publishing reports to its configured Doctor report directory.
+
+Pipes and structured output work too:
+
+```sh
+dsh web 2>&1 | dsh-doctor diagnose --profile ./web
+dsh-doctor diagnose --profile ./web --log - --format json
+dsh-doctor diagnose --profile ./web --format markdown
+```
+
+Default `diagnose`/`check` inspect static metadata without starting DSH, importing plugin code, running lifecycle scripts or accessing the network. `check` is a small alias for the same reader and requires the same explicit profile. JSON returns the versioned explanation result; `--output <dir>` or `--report-dir <dir>` writes a compatible analysis report with `failureExplanation` and `compositionFacts` plus Markdown. Output directories must be outside the profile. No report is written by default.
+
+Then inspect a specific source:
 
 ```powershell
 dsh-doctor why row tool-bash --profile C:\path\to\profile
@@ -41,12 +81,46 @@ flowchart LR
 
 These links appear only when the report has supporting facts; missing ownership is left unknown.
 
+## Real failure examples
+
+1. **A bundle plus a hand-written insertion.** [DSH Discussion #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889) reports a plugin-management change that promotes dependencies into the bundle list while manual rows remain. Doctor's minimized regression connects `session-cleaner` to both insertion paths. Review the bundle declaration and manual patch together; a patch update is never counted as a second insertion.
+2. **A package without its declared patch file.** [DSH Discussion #6539](https://github.com/deepseek-ai/deepseek-harness/discussions/6539) includes a report of the published `dsh-cad` package lacking its YAML overlay. The minimized fixture produces:
+
+```text
+Bundle patch is unavailable: dsh-cad
+reported-by-log; evidence: static
+
+Path 1: bundle dsh-cad → <PROFILE>/node_modules/dsh-cad/package.json
+
+Next: Review the bundle manifest → dsh.bundle.patch and packaged YAML file.
+Doctor did not modify your profile.
+```
+
+These are sanitized reconstructions of public failure patterns, not copies of users' profiles or a replay of their runtime. The suite also verifies that the same logs with no matching metadata remain `unknown`.
+
+## Supported explanations
+
+| Pattern | Observable basis | Boundary |
+|---|---|---|
+| Duplicate loader id | Separate `insert`/base-row declarations, or duplicate composed rows | A normal update or patched source chain is not another insertion; no runtime rejection is inferred. |
+| Bundle unavailable | Declared bundle plus bounded local resolution finding | Built-in installation bundles and external links may resolve elsewhere. |
+| Missing/invalid bundle patch | Manifest plus missing, invalid or disallowed declared YAML metadata | No file or command suggested by a log is followed. |
+| Patch target missing | Target declaration with no local insertion, or a public dump finding | Home/CLI/built-in layers may still supply it. |
+| Peer/version mismatch | Installed DSH-family peer range and independently selected `--dsh-version <exact>`; Node engine uses the actual Doctor process | Log-reported versions are not runtime facts; no compatible release is guessed. |
+| Config replacement / override | Config patch declaration or composed provenance/replacement fact | Removed effective keys and field ownership stay unknown unless observed. |
+
+Upgrade ownership changes use existing `snapshot`/`diff` and `preflight`; arbitrary route/slot/hook root causes are outside this version's failure patterns. `diagnose --composed` opts in to the existing isolated public dump adapter; it never installs packages, starts plugin runtime, or upgrades static declarations to composed evidence. Copied-profile/provider coverage can be incomplete, and runtime remains `not-observed`.
+
+Logs are limited to 1 MiB; explicit files must be `.log`, `.txt` or `.out`. Secret, workspace, session and chat paths are refused. At most 32 log signatures and 50 metadata explanations are retained; truncation is indicated in JSON. Human output shows the first three explanations. Exit 0 means a report was produced (including `unknown`/`no-match`), not that DSH is healthy; operational failures return 1 and invalid arguments return 2.
+
 [Commands](#what-it-explains) · [Evidence boundaries](#reports-and-evidence-boundaries) · [Safety & privacy](#safety-and-privacy) · [Compatibility](#support-and-limitations) · [Development](#development)
 
 ## What it explains
 
 | Command | Purpose |
 |---|---|
+| `dsh-doctor diagnose` | Explain supported failures from selected metadata, optionally focused by an untrusted error log. Human-readable by default; JSON/Markdown are available. |
+| `dsh-doctor check` | Inspect the explicitly selected profile with the same bounded reader and show how to diagnose a symptom. |
 | `dsh-doctor scan` | Detect duplicate Cordis rows, hook-order risks, UI slot/route ownership conflicts, bundle overrides, peer/platform mismatches, and profile drift. |
 | `dsh-doctor snapshot` | Create a redacted, comparable profile snapshot with lockfile hashes. |
 | `dsh-doctor diff` | Summarize added/removed/upgraded plugins, rows, hooks, UI claims, peers, and platforms. |
@@ -88,7 +162,7 @@ Default operations are read-only or isolated under the OS temporary directory. T
 
 ## Support and limitations
 
-The real public CLI harness verifies `@deepseek-ai/dsh@0.1.5-rc.1` and `@deepseek-ai/dsh@0.1.5-rc.2`. `0.1.6-alpha.1` remains expected-compatible/experimental only; `0.1.0-rc.6` is historical context, not a current verified target. Missing artifacts are reported as unavailable, never as PASS. Verified development runtime: Node.js 24 on Windows; CI covers Node.js 20 on Ubuntu. Runtime hook/UI ownership is reported as unverified unless public metadata supplies it, and a temp profile is not a security sandbox.
+On 2026-10-03 the npm `latest` release was checked as `@deepseek-ai/dsh@0.2.0-rc.2`; its public `--version`/`--dump-config` harness was rerun on Windows and Ubuntu 24.04 (WSL) + Node.js 24.19.0. Doctor's full RC gates and packed fresh-install smoke passed locally on Windows/Node 24 and Ubuntu/Node 20.19.5 and 24.19.0. On 2026-10-04, [Hosted CI passed all six Windows/Ubuntu × Node 20/22/24 jobs](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37187050083), including packed fresh-install smoke; the current DSH public harness passed on both Node 24 jobs. Older `0.1.5-rc.1`/`rc.2` goldens are historical evidence; their real-artifact tests skip when artifacts are unavailable. `0.2.1-alpha.1` is expected-compatible/experimental, not verified. Doctor supports Node.js `>=20`. This does not claim that every third-party plugin works, or that plugin runtime/UI registration was observed. [Compatibility detail](docs/compatibility.md) · [RC verification record](docs/release-evidence/0.4.0.md).
 
 ## Development
 
@@ -96,6 +170,8 @@ The real public CLI harness verifies `@deepseek-ai/dsh@0.1.5-rc.1` and `@deepsee
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm pack
+pnpm smoke:pack ./dsh-composition-doctor-0.4.0.tgz
 ```
 
 For checkout-only development, run the CLI with `node dist/cli/main.js` after building.

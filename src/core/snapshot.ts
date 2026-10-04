@@ -99,7 +99,7 @@ function snapshotFromModel(model: CompositionModel, input?: ProfileInput): Snaps
   const hashes = Object.fromEntries((input?.files ?? []).filter((file) => ['package.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock'].includes(file.relativePath)).map((file) => [file.relativePath, file.sha256]))
   return {
     schemaVersion: 2,
-    doctorVersion: '0.1.3',
+    doctorVersion: '0.4.0',
     runtime: { ...(model.runtime?.dsh === undefined ? {} : { dsh: model.runtime.dsh }), ...(model.runtime?.cordis === undefined ? {} : { cordis: model.runtime.cordis }), node: model.runtime?.node ?? process.versions.node, platform: model.runtime?.platform ?? process.platform },
     profile: { ...(profileName === undefined ? {} : { name: profileName }), ...(manifest === undefined ? {} : { manifestHash: manifest.sha256 }) },
     packages: sortJson(packages),

@@ -108,7 +108,7 @@ export function parseDshDump(stdout: string, stderr = ''): ParsedDump {
   const unmatched = stderr.match(/(?:patch[^\r\n]*(?:unmatched|unknown|not found)|(?:unmatched|unknown|not found)[^\r\n]*(?:patch|row|target))[^\r\n]*/gi) ?? []
   for (const detail of unmatched) diagnostics.push({
     id: 'unmatched-patch-target', severity: 'warning', title: 'Resolved patch target did not match a row',
-    evidence: [{ source: '<DSH stderr>', detail, evidenceKind: 'composed' }],
+    evidence: [{ source: '<DSH stderr>', detail, evidenceKind: 'composed', ...(detail.match(/entry ["']([a-z0-9_.:-]+)["'] not found/i)?.[1] === undefined ? {} : { subject: detail.match(/entry ["']([a-z0-9_.:-]+)["'] not found/i)![1] }) }],
     explanation: 'The public DSH dump reported a patch target that did not match a resolved row.',
     remediation: 'Verify the patch row id against the selected bundle/profile composition.'
   })
