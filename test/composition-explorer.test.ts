@@ -2,7 +2,8 @@ import { expect, test, vi } from 'vitest'
 
 vi.mock('react', () => ({ createElement: () => ({}), useEffect: () => undefined, useRef: <T>(current: T) => ({ current }) }))
 
-import { createCompositionExplorer, compositionNodeDetail, toReportViewModel } from '../src/client/report-view.js'
+import { createCompositionExplorer, createFailureExplanation, compositionNodeDetail, toReportViewModel } from '../src/client/report-view.js'
+import { explainFailures } from '../src/core/failure-explainer.js'
 import { analyseComposition } from '../src/core/rules.js'
 import type { AnalysisReport, CompositionModel } from '../src/core/types.js'
 
@@ -81,4 +82,21 @@ test('selecting a Web graph node fills the detail panel; old reports remain view
   expect(toReportViewModel(legacy).compositionGraph).toEqual({ nodes: [], edges: [] })
   const legacyExplorer = createCompositionExplorer(document, legacy) as unknown as FakeElement
   expect(legacyExplorer.text()).toContain('unavailable in this legacy report')
+})
+
+test('Failure Explanation displays evidence, unknowns and related nodes using text-only rendering', () => {
+  const report = fixtureReport()
+  report.failureExplanation = explainFailures({ report })
+  const document = { createElement: (tag: string) => new FakeElement(tag) } as unknown as Document
+  const view = createFailureExplanation(document, report) as unknown as FakeElement
+  expect(view.text()).toContain('Failure Explanation')
+  expect(view.text()).toContain('Whole-config replacement is unknown')
+  expect(view.text()).toContain('Related diagnostics:')
+  expect(view.text()).toContain('not-run')
+  expect(view.text()).not.toContain('not-to-serialize')
+  const explorer = createCompositionExplorer(document, report) as unknown as FakeElement
+  expect(explorer.all().some((item) => item.dataset.failureRelated === 'true')).toBe(true)
+  expect(createFailureExplanation(document, { ...report, failureExplanation: undefined }).textContent).toBeDefined()
+  const legacy = createFailureExplanation(document, { ...report, failureExplanation: undefined }) as unknown as FakeElement
+  expect(legacy.text()).toContain('No failure explanation')
 })

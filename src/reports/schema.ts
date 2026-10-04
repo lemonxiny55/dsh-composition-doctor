@@ -12,6 +12,34 @@ export const analysisReportJsonSchema = {
     evidenceMode: { enum: ['static', 'composed', 'runtime-observed', 'mixed'] },
     runtimeObserved: { type: 'boolean' },
     unverifiedFindings: { type: 'array', items: { type: 'string' } },
+    failureExplanation: {
+      type: 'object', required: ['schemaVersion', 'outcome', 'profile', 'runtime', 'input', 'explanations', 'unknowns', 'nextStep'],
+      properties: {
+        schemaVersion: { const: 1 }, outcome: { enum: ['explained', 'unknown', 'no-match', 'no-supported-issues'] },
+        profile: { const: '<PROFILE>' }, runtime: { const: 'not-observed' },
+        input: { type: 'object', required: ['log', 'recognizedSignatures', 'truncated'], properties: {
+          log: { enum: ['not-provided', 'reported-by-log'] }, recognizedSignatures: { type: 'integer', minimum: 0 }, truncated: { type: 'boolean' }
+        }, additionalProperties: false },
+        explanations: { type: 'array', items: {
+          type: 'object', required: ['pattern', 'detectedFailure', 'origin', 'causeStatus', 'observableCause', 'provenancePaths', 'evidenceLevel', 'unknowns', 'manualRemediation', 'relatedDiagnostics'],
+          properties: {
+            pattern: { enum: ['duplicate-loader-entry', 'bundle-unavailable', 'bundle-patch-unavailable', 'patch-target-missing', 'peer-incompatible', 'config-replacement'] },
+            detectedFailure: { type: 'string' }, origin: { enum: ['reported-by-log', 'observed-from-composition'] },
+            matchedEntity: { type: 'object', required: ['kind', 'id'], properties: { kind: { enum: ['row', 'package'] }, id: { type: 'string' } }, additionalProperties: false },
+            causeStatus: { enum: ['observable-condition', 'unknown'] }, observableCause: { type: 'string' },
+            provenancePaths: { type: 'array', items: { type: 'object', required: ['source', 'provenance', 'evidence'], properties: {
+              source: { type: 'string' }, layer: { type: 'string' }, packageName: { type: 'string' }, rowId: { type: 'string' }, rowKey: { type: 'string' },
+              provenance: { type: 'array', items: { type: 'object', required: ['source', 'sourceBasis', 'relation', 'basis'], properties: { source: { type: 'string' }, sourceBasis: { const: 'observed' }, relation: { enum: ['introduced', 'patched-by'] }, basis: { enum: ['observed', 'derived'] } }, additionalProperties: false } },
+              evidence: { enum: ['static', 'composed', 'runtime-observed'] }
+            }, additionalProperties: false } },
+            evidenceLevel: { enum: ['static', 'composed', 'runtime-observed', 'unknown'] },
+            unknowns: { type: 'array', items: { type: 'string' } }, manualRemediation: { type: 'string' },
+            relatedDiagnostics: { type: 'array', items: { type: 'object' } }
+          }, additionalProperties: false
+        } },
+        unknowns: { type: 'array', items: { type: 'string' } }, nextStep: { type: 'string' }
+      }, additionalProperties: false
+    },
     compositionFacts: {
       type: 'object',
       required: ['schemaVersion', 'evidenceMode', 'nodes', 'edges', 'rows', 'unknownSurfaces'],
@@ -39,6 +67,7 @@ export const analysisReportJsonSchema = {
           type: 'object', required: ['entity', 'key', 'source', 'sourceBasis', 'provenance', 'replacement', 'configKeys', 'configKeysBasis', 'evidenceMode', 'relatedDiagnosticIds', 'unknown'],
           properties: {
             entity: { const: 'row' }, key: { type: 'string' }, id: { type: 'string' }, name: { type: 'string' },
+            operation: { enum: ['insert', 'update', 'declare'] },
             source: { type: 'string' }, sourceBasis: { const: 'observed' }, layer: { type: 'string' }, layerOrder: { type: 'number' },
             provenance: { type: 'array', items: { type: 'object', required: ['source', 'sourceBasis', 'relation', 'basis'], properties: { source: { type: 'string' }, sourceBasis: { const: 'observed' }, relation: { enum: ['introduced', 'patched-by'] }, basis: { enum: ['observed', 'derived'] } }, additionalProperties: false } },
             replacement: { type: 'object', required: ['state', 'basis'], properties: { state: { enum: ['yes', 'no', 'unknown'] }, basis: { enum: ['observed', 'derived', 'unknown'] } }, additionalProperties: false },

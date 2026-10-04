@@ -10,10 +10,11 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [22, 24]
+        os: [ubuntu-latest, windows-latest]
+        node-version: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,7 +22,16 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install current official DSH composition artifact (no lifecycle)
+        if: matrix.node-version == 24
+        run: |
+          node -e "const fs=require('node:fs');fs.mkdirSync('.ci-dsh',{recursive:true});fs.writeFileSync('.ci-dsh/package.json',JSON.stringify({name:'doctor-ci-dsh',private:true}))"
+          pnpm --dir .ci-dsh add @deepseek-ai/dsh@0.2.0-rc.2 --ignore-scripts
       - run: pnpm typecheck
       - run: pnpm test
+        env:
+          DSH_DOCTOR_REAL_DSH_CURRENT_BIN: ${{ matrix.node-version == 24 && format('{0}/.ci-dsh/node_modules/@deepseek-ai/dsh/lib/bin.js', github.workspace) || '' }}
       - run: pnpm build
+      - run: pnpm pack
+      - run: pnpm smoke:pack ./dsh-composition-doctor-0.4.0.tgz

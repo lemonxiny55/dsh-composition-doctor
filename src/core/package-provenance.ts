@@ -54,6 +54,7 @@ export async function inspectInstalledPackage(profileDir: string, name: string, 
   const source = packageJsonPath(profileDir, name)
   const resolvedSource = await realpath(source)
   if (!within(profileRoot, resolvedSource)) throw new Error(`Bundle package resolves outside the selected profile: ${name}`)
+  if (!/[\\/]package\.json$/i.test(resolvedSource) || /(?:^|[\\/])(?:\.env[^\\/]*|workspace|sessions?|chats?|[^\\/]*(?:credentials?|tokens?|secrets?|password)[^\\/]*)(?:[\\/]|$)/i.test(resolvedSource)) throw new Error('Bundle manifest is outside the permitted metadata surface')
   const manifest = JSON.parse(await readFile(resolvedSource, 'utf8')) as PackageManifest
   const dsh = record(manifest.dsh)
   const bundle = record(dsh?.bundle)
@@ -62,6 +63,7 @@ export async function inspectInstalledPackage(profileDir: string, name: string, 
   const engines = record(manifest.engines)
   const scripts = record(manifest.scripts)
   const peerDsh = string(peers?.['@deepseek-ai/dsh'])
+  const dshPeers = Object.fromEntries(Object.entries(peers ?? {}).filter(([key, value]) => /^@deepseek-ai\/dsh(?:-[a-z0-9_.-]+)?$/i.test(key) && typeof value === 'string')) as Record<string, string>
   const peerCordis = string(peers?.['@deepseek-ai/cordis']) ?? string(peers?.cordis) ?? string(peers?.['@cordisjs/core'])
   const engineNode = string(engines?.node)
   const repository = repositoryValue(manifest.repository)
@@ -88,6 +90,7 @@ export async function inspectInstalledPackage(profileDir: string, name: string, 
     modifiedAt: fileStat.mtime.toISOString(),
     ...(Array.isArray(manifest.os) ? { platform: manifest.os.filter((item): item is string => typeof item === 'string') } : {}),
     ...(peerDsh === undefined ? {} : { peerDsh }),
+    ...(Object.keys(dshPeers).length === 0 ? {} : { dshPeers }),
     ...(peerCordis === undefined ? {} : { peerCordis }),
     ...(engineNode === undefined ? {} : { engineNode }),
     ...(scripts === undefined ? {} : { lifecycleScripts: ['preinstall', 'install', 'postinstall', 'prepare'].filter((key) => typeof scripts[key] === 'string') })

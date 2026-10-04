@@ -1,6 +1,7 @@
+#!/usr/bin/env node
 import { fileURLToPath } from 'node:url'
 import { readFileSync, realpathSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 import { resolveComposition } from '../core/composition-adapter.js'
@@ -13,13 +14,105 @@ import { renderJson } from '../reports/json.js'
 import { renderMarkdown } from '../reports/markdown.js'
 import { resolveReportDirectory } from '../reports/location.js'
 import { runPreflight } from '../core/preflight.js'
+import { explainFailures, maxFailureLogBytes } from '../core/failure-explainer.js'
+import { readFailureComposition } from '../core/failure-profile.js'
+import { renderFailure } from '../reports/failure.js'
 
 export interface CliIo {
   write(line: string): void
+  readStdin?(): Promise<string | undefined>
 }
 
-const usage = 'Usage: dsh-doctor <scan | snapshot | diff | preflight | why | impact>'
-const commands = new Set(['scan', 'snapshot', 'diff', 'preflight', 'why', 'impact'])
+const usage = 'Usage: dsh-doctor <diagnose | check | scan | snapshot | diff | preflight | why | impact>'
+const commands = new Set(['diagnose', 'check', 'scan', 'snapshot', 'diff', 'preflight', 'why', 'impact'])
+
+async function stdinLog(): Promise<string | undefined> {
+  if (process.stdin.isTTY) return undefined
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    size += buffer.length
+    if (size > maxFailureLogBytes) throw new Error('Log exceeds the 1 MiB limit; provide a minimized error log.')
+    chunks.push(buffer)
+  }
+  return chunks.length === 0 ? undefined : Buffer.concat(chunks).toString('utf8')
+}
+
+async function fileLog(filename: string): Promise<string> {
+  const path = await realpath(resolve(filename))
+  if (!/\.(?:log|txt|out)$/i.test(path) || /(?:^|[\\/])(?:\.env[^\\/]*|[^\\/]*(?:credential|token|secret|password)[^\\/]*|sessions?|chats?|workspace)(?:[\\/]|$)/i.test(path)) {
+    throw new Error('--log accepts explicit .log/.txt/.out error logs; secret, session and workspace paths are forbidden.')
+  }
+  const metadata = await lstat(path)
+  if (!metadata.isFile() || metadata.size > maxFailureLogBytes) throw new Error('Log must be a regular file of at most 1 MiB.')
+  const text = await readFile(path, 'utf8')
+  if (Buffer.byteLength(text) > maxFailureLogBytes) throw new Error('Log exceeds the 1 MiB limit.')
+  return text
+}
+
+async function diagnose(argv: readonly string[], io: CliIo, check = false): Promise<number> {
+  if (argv.includes('--help')) {
+    io.write('Usage: dsh-doctor diagnose --profile <dir> [--log <file> | --log -] [--format human|json|markdown|both] [--output <dir>] [--report-dir <dir> | --publish] [--dsh-version <version>] [--composed]\nPiped stdin is detected automatically. Default: read-only static metadata, no DSH execution. check is the same bounded entry point; --profile is required.')
+    return 0
+  }
+  const valued = new Set(['--profile', '--log', '--format', '--output', '--report-dir', '--dsh-version'])
+  const flags = new Set(['--publish', '--composed'])
+  const seen = new Set<string>()
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index]
+    if ((!valued.has(value) && !flags.has(value)) || seen.has(value)) return invalid(io, 'diagnose has an unknown or repeated option')
+    seen.add(value)
+    if (valued.has(value)) {
+      if (argv[index + 1] === undefined || argv[index + 1].startsWith('--')) return invalid(io, `${value} requires a value`)
+      index += 1
+    }
+  }
+  const profile = option(argv, '--profile')
+  if (profile === undefined) return invalid(io, `${check ? 'check' : 'diagnose'} requires --profile <dir>; no profile is guessed`)
+  const format = option(argv, '--format') ?? 'human'
+  if (!['human', 'json', 'markdown', 'both'].includes(format)) return invalid(io, '--format must be human, json, markdown, or both')
+  const dshVersion = option(argv, '--dsh-version')
+  if (dshVersion !== undefined && !/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?(?:\+[a-z0-9.-]+)?$/i.test(dshVersion)) return invalid(io, '--dsh-version requires an exact semantic version')
+  let log: string | undefined
+  const logPath = option(argv, '--log')
+  try { log = logPath !== undefined && logPath !== '-' ? await fileLog(logPath) : await io.readStdin?.() }
+  catch { io.write('Could not read permitted log input. Use a minimized .log/.txt/.out file or stdin, at most 1 MiB; secret/session/workspace paths are forbidden.'); return 1 }
+  if (logPath === '-' && log === undefined) return invalid(io, '--log - requires piped input')
+  if (log !== undefined && Buffer.byteLength(log) > maxFailureLogBytes) return invalid(io, 'log exceeds 1 MiB')
+  const input = await readProfile({ profileDir: resolve(profile) })
+  let model = await readFailureComposition(input, argv.includes('--composed'))
+  if (dshVersion !== undefined) model = { ...model, runtime: { ...model.runtime, dsh: dshVersion } }
+  const report = analyseComposition(model)
+  const result = explainFailures({ report, log })
+  report.failureExplanation = result
+  const output = option(argv, '--output')
+  const reportDir = option(argv, '--report-dir')
+  const destinations = [...(output === undefined ? [] : [resolve(output)]),
+    ...(argv.includes('--publish') || reportDir !== undefined ? [resolveReportDirectory(reportDir)] : [])]
+  // Prevent report output from mutating the selected profile, including symlink parents.
+  for (const directory of destinations) {
+    let parent = directory
+    let canonical: string | undefined
+    for (;;) {
+      try { canonical = await realpath(parent); break } catch { const next = dirname(parent); if (next === parent) break; parent = next }
+    }
+    const root = input.profileDir.toLowerCase().replaceAll('\\', '/')
+    const normalized = (canonical ?? directory).toLowerCase().replaceAll('\\', '/')
+    if (normalized === root || normalized.startsWith(`${root}/`)) return invalid(io, 'diagnose output/report directory must be outside the selected profile')
+  }
+  for (const directory of new Set(destinations)) {
+    await mkdir(directory, { recursive: true })
+    for (const filename of ['report.json', 'report.md']) {
+      try { const metadata = await lstat(resolve(directory, filename)); if (metadata.isSymbolicLink() || metadata.nlink > 1) return invalid(io, 'report destination must not be a symbolic or hard link') } catch { /* new file */ }
+    }
+    await writeFile(resolve(directory, 'report.json'), renderJson(report), 'utf8')
+    await writeFile(resolve(directory, 'report.md'), renderFailure(result, true), 'utf8')
+  }
+  io.write(format === 'json' ? `${JSON.stringify(result, null, 2)}\n` : format === 'both'
+    ? `${JSON.stringify(result, null, 2)}\n${renderFailure(result, true)}` : renderFailure(result, format === 'markdown'))
+  return 0
+}
 
 function packageVersion(): string {
   try {
@@ -204,7 +297,7 @@ async function impact(argv: readonly string[], io: CliIo): Promise<number> {
   return 0
 }
 
-export async function runCli(argv: readonly string[], io: CliIo = { write: (line) => console.log(line) }): Promise<number> {
+export async function runCli(argv: readonly string[], io: CliIo = { write: (line) => console.log(line), readStdin: stdinLog }): Promise<number> {
   const command = argv[0]
 
   if (argv.length === 0 || command === '--help') {
@@ -223,6 +316,7 @@ export async function runCli(argv: readonly string[], io: CliIo = { write: (line
   }
 
   try {
+    if (command === 'diagnose' || command === 'check') return await diagnose(argv.slice(1), io, command === 'check')
     if (command === 'scan') return await scan(argv.slice(1), io)
     if (command === 'snapshot') return await snapshot(argv.slice(1), io)
     if (command === 'diff') return await diff(argv.slice(1), io)
@@ -230,6 +324,10 @@ export async function runCli(argv: readonly string[], io: CliIo = { write: (line
     if (command === 'why') return await why(argv.slice(1), io)
     return await impact(argv.slice(1), io)
   } catch (error: unknown) {
+    if (command === 'diagnose' || command === 'check') {
+      io.write('Could not inspect selected profile metadata. Check --profile directory, metadata syntax and file access.')
+      return 1
+    }
     io.write(error instanceof Error ? error.message : String(error))
     return 1
   }

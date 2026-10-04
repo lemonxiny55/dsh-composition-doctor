@@ -94,11 +94,23 @@ async function assertRelease(binary: string, release: string, goldenName: string
     expect.stringContaining('cordis.patch.yml'),
     expect.stringContaining('overlay.patch.yml')
   ])
-  expect(run.stdout).toMatch(/C:\\Users\\/)
+  expect(run.stdout).toContain(run.profile)
 }
 
 const rc1Binary = binaryFromEnvironment('DSH_DOCTOR_REAL_DSH_RC1_BIN')
 const rc2Binary = binaryFromEnvironment('DSH_DOCTOR_REAL_DSH_RC2_BIN')
+const currentBinary = binaryFromEnvironment('DSH_DOCTOR_REAL_DSH_CURRENT_BIN')
+
+test.skipIf(currentBinary === undefined)('real DSH 0.2.0-rc.2 current public compatibility harness', async () => {
+  await assertRelease(currentBinary!, '0.2.0-rc.2', '0.2.0-rc.2.dump.yml')
+})
+
+test.skipIf(currentBinary === undefined)('current DSH unmatched patch retains composed entity evidence without runtime claims', async () => {
+  const run = await runRealRelease(currentBinary!, true)
+  expect(parseDshDump(run.stdout, run.stderr).diagnostics).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'unmatched-patch-target', evidence: expect.arrayContaining([expect.objectContaining({ subject: 'missing-row', evidenceKind: 'composed' })]) })
+  ]))
+})
 
 test.skipIf(rc1Binary === undefined)('real DSH 0.1.5-rc.1 public compatibility harness', async () => {
   await assertRelease(rc1Binary!, '0.1.5-rc.1', '0.1.5-rc.1.dump.yml')

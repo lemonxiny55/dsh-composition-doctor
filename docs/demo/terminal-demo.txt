@@ -1,0 +1,50 @@
+
+Installed a bundle over a manual row?
+
+DSH ERROR
+Error: dsh: plugin tree failed to load: duplicate loader entry id: session-cleaner
+
+$ dsh-doctor diagnose --profile <profile> --log dsh-error.log
+
+DSH Composition Doctor — Failure Explanation
+
+Profile: <PROFILE>; runtime: not-observed
+
+Duplicate loader entry id: session-cleaner
+reported-by-log; evidence: static
+
+Cause: session-cleaner is introduced by 2 separate loader declarations. Both inserts use the same id; the final loader outcome is unknown until composition/runtime is observed.
+
+Path 1: bundle session-cleaner → <PROFILE>/node_modules/session-cleaner/cordis.patch.yml
+  layer: dsh.profile.bundles[0]: session-cleaner → row: session-cleaner
+Path 2: cordis.patch.yml
+  layer: cordis.patch.yml → row: session-cleaner
+
+Unknown: runtime not observed / not-run; final composition unknown.
+Next: Review the listed bundle declarations and profile patch. Keep one intended insertion for this id after checking its config; use why row and impact bundle for details.
+
+Doctor did not modify your profile.
+
+Installed package missing its YAML patch?
+
+DSH ERROR
+Error: dsh: failed to read overlay <PROFILE>/node_modules/dsh-cad/cordis.patch.yml: ENOENT
+
+$ dsh-doctor diagnose --profile <profile> --log dsh-error.log
+
+DSH Composition Doctor — Failure Explanation
+
+Profile: <PROFILE>; runtime: not-observed
+
+Bundle patch is unavailable: dsh-cad
+reported-by-log; evidence: static
+
+Cause: The declared bundle has missing, invalid or disallowed patch metadata. Its manifest declaration does not supply an observable loader contribution.
+
+Path 1: bundle dsh-cad → <PROFILE>/node_modules/dsh-cad/package.json
+  layer: unknown
+
+Unknown: runtime not observed / not-run; final composition unknown.
+Next: Review the bundle manifest → dsh.bundle.patch and packaged YAML file. Check the publisher tarball contents; do not substitute or execute a file suggested by the log.
+
+Doctor did not modify your profile.

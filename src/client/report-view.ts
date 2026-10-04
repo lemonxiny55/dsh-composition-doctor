@@ -144,6 +144,39 @@ function renderConflictGraph(document: Document, graph: ConflictGraph): HTMLElem
   return section
 }
 
+export function createFailureExplanation(document: Document, report: AnalysisReport): HTMLElement {
+  const section = document.createElement('section')
+  section.dataset.failureExplanation = 'true'
+  const heading = document.createElement('h3'); heading.textContent = 'Failure Explanation'
+  section.append(heading)
+  const result = report.failureExplanation
+  if (result === undefined) {
+    const message = document.createElement('p')
+    message.textContent = 'No failure explanation in this report. Run dsh-doctor diagnose --profile <dir> --report-dir <doctor-reports> to create one.'
+    section.append(message)
+    return section
+  }
+  const status = document.createElement('p')
+  status.textContent = `Outcome: ${result.outcome}; runtime: ${result.runtime}. Log signatures are reported claims, not composition evidence.`
+  section.append(status)
+  for (const explanation of result.explanations) {
+    const details = document.createElement('details')
+    const summary = document.createElement('summary')
+    summary.textContent = `${explanation.detectedFailure} (${explanation.origin}; ${explanation.evidenceLevel})`
+    const cause = document.createElement('p'); cause.textContent = explanation.observableCause
+    const paths = document.createElement('pre')
+    paths.textContent = explanation.provenancePaths.map((path) => `${path.packageName ?? 'profile'} → ${path.source} → ${path.layer ?? 'unknown layer'} → ${path.rowId ?? 'unknown row'}\n${path.provenance.map((step) => `${step.relation}: ${step.source} (${step.basis})`).join(' → ')}`).join('\n\n')
+    const unknown = document.createElement('p'); unknown.textContent = `Unknown: ${explanation.unknowns.join(' ')}`
+    const diagnostics = document.createElement('p'); diagnostics.textContent = `Related diagnostics: ${explanation.relatedDiagnostics.map((item) => item.id).join(', ') || 'none observed'}`
+    const remediation = document.createElement('p'); remediation.textContent = `Manual next step: ${explanation.manualRemediation}`
+    details.append(summary, cause, paths, diagnostics, unknown, remediation)
+    section.append(details)
+  }
+  const next = document.createElement('p'); next.textContent = `${result.nextStep} Doctor did not modify your profile.`
+  section.append(next)
+  return section
+}
+
 export function createCompositionExplorer(document: Document, report: AnalysisReport): HTMLElement {
   const section = document.createElement('section')
   section.setAttribute('aria-labelledby', 'dsh-composition-doctor-explorer')
@@ -192,6 +225,10 @@ export function createCompositionExplorer(document: Document, report: AnalysisRe
         }
       })
       select.dataset.compositionNode = node.id
+      if (report.failureExplanation?.explanations.some((item) => item.provenancePaths.some((path) => path.rowKey === node.rowKey && node.rowKey !== undefined || path.packageName === node.packageName && node.packageName !== undefined))) {
+        select.dataset.failureRelated = 'true'
+        select.textContent = `${node.entity}: ${node.label} [failure evidence]`
+      }
       item.append(select)
       const outgoing = graph.edges.filter((edge) => edge.from === node.id)
       if (outgoing.length > 0) {
@@ -312,6 +349,7 @@ export function createReportView(document: Document = globalThis.document, trans
     status.textContent = `Generated: ${report.generatedAt}. Profile: ${report.profileDir}. Diagnostics: ${model.counts.error} error, ${model.counts.warning} warning, ${model.counts.info} info.`
     status.append(document.createTextNode(' '), badge)
     root.append(renderConflictGraph(document, model.graph))
+    root.append(createFailureExplanation(document, report))
     root.append(createCompositionExplorer(document, report))
     const list = document.createElement('ul')
     for (const diagnostic of report.diagnostics) {

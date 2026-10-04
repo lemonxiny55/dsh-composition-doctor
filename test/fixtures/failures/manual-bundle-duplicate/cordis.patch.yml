@@ -1,0 +1,5 @@
+- insert:
+    - id: session-cleaner
+      name: session-cleaner
+      config:
+        enabled: true

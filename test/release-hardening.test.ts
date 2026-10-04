@@ -134,10 +134,7 @@ describe('release hardening', () => {
       if (url === 'https://registry.npmjs.org/foo') return new Response(JSON.stringify({ versions: { '1.2.3': { dist: { tarball: 'https://registry.npmjs.org/foo/-/foo-1.2.3.tgz', integrity } } } }), { headers: { 'content-type': 'application/json' } })
       return new Response(bytes, { headers: { 'content-type': 'application/octet-stream' } })
     }))
-    await Promise.all([
-      downloadNpmArtifact('foo@1.2.3', root),
-      downloadNpmArtifact('foo@1.2.3', root)
-    ])
+    await Promise.all(Array.from({ length: 8 }, () => downloadNpmArtifact('foo@1.2.3', root)))
     const names = await readdir(root)
     expect(names.filter((name) => name.endsWith('.partial'))).toHaveLength(0)
     expect(names).toEqual(expect.arrayContaining(['foo-1.2.3.tgz', 'foo-1.2.3.tgz.metadata.json']))
