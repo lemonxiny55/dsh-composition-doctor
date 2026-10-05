@@ -385,7 +385,7 @@ Document the no-network default, profile non-mutation, absence of security scori
 
 - [ ] **Step 4: Run documentation and release audit**
 
-Run: `pnpm test && pnpm typecheck && pnpm build; rg -n -i '(api[_-]?key|password|token|BEGIN (RSA|OPENSSH)|C:\\Users\\18439|\.tmp-test-report)' --glob '!pnpm-lock.yaml' .`
+Run: `pnpm test && pnpm typecheck && pnpm build; rg -n -i '(api[_-]?key|password|token|BEGIN (RSA|OPENSSH)|[A-Za-z]:\\Users\\[^\\]+|\.tmp-test-report)' --glob '!pnpm-lock.yaml' .`
 
 Expected: quality commands exit 0; every sensitive-looking match is inspected, redacted, removed, or documented as a schema field with no value.
 
