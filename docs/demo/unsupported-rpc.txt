@@ -1,0 +1,8 @@
+DSH Composition Doctor — Failure Explanation
+
+Profile: <PROFILE>; runtime: not-observed
+
+No supported failure signature matched. Cause: unknown.
+
+Review the named source paths. If the cause is unknown, verify the profile selection and compare a public dump, why row, snapshot/diff or preflight.
+Doctor did not modify your profile.

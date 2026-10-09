@@ -6,51 +6,51 @@
 
 English | [中文](README.zh.md)
 
-> **DSH failed after installing or upgrading a plugin?**
+> **DSH won't start after installing or upgrading a plugin?**
 >
-> Find which bundle, profile layer, or override is involved—and what the evidence actually proves.
+> Composition Doctor 0.4.0 links supported failures to the bundle, patch or profile layer you should inspect next—even when the Web UI cannot open.
 
-```sh
-dsh-doctor diagnose --profile ./web --log dsh-error.log
-```
-
-```text
-Duplicate loader entry id: session-cleaner
-reported-by-log; evidence: static
-
-Cause: session-cleaner is introduced by 2 separate loader declarations.
-
-Path 1: bundle session-cleaner → <PROFILE>/node_modules/session-cleaner/cordis.patch.yml
-  layer: dsh.profile.bundles[0]: session-cleaner → row: session-cleaner
-Path 2: cordis.patch.yml
-  layer: cordis.patch.yml → row: session-cleaner
-
-Unknown: runtime not observed / not-run; final composition unknown.
-Doctor did not modify your profile.
-```
-
-Excerpt from a minimized [public duplicate-loading case](https://github.com/deepseek-ai/deepseek-harness/discussions/2889). Static declarations expose the conflicting paths; they do not prove a runtime crash. [Full demos and sources](docs/failure-cases.md) · [25-second terminal demo](scripts/failure-demo.mjs)
-
-**Explain failures · Trace composition provenance · Preview upgrade risks**
-
-**Read-only · Offline by default · No automatic fixes or installs**
-
-For [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`). One command connects a supported failure to its entity, observable source paths and a manual next step. Missing evidence stays unknown.
+**Read-only · Offline diagnosis by default · No automatic repairs · Node.js ≥20**
 
 ## Quick start
 
-**0.4.0 is a local release candidate, not yet published.** The public 0.3.0 package does not have `diagnose`. Build this checkout and install the reviewed tarball locally:
+[0.4.0 is published on npm](https://www.npmjs.com/package/dsh-composition-doctor/v/0.4.0). Install the standalone CLI, then select your actual profile directory:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm pack
-pnpm add -g ./dsh-composition-doctor-0.4.0.tgz --ignore-scripts
-dsh-doctor check --profile ./web
-dsh-doctor diagnose --profile ./web --log dsh-error.log
+npm install -g dsh-composition-doctor@0.4.0 --ignore-scripts
+dsh-doctor --version
+dsh-doctor check --profile "$HOME/.dsh/profiles/web"
 ```
 
-`--profile` is an explicit directory, not a DSH profile nickname. For the standard Web profile, use `~/.dsh/profiles/web` (PowerShell: `$HOME/.dsh/profiles/web`). CLI use needs no running Web UI or plugin installation. To use the Web Explorer, add the reviewed local tarball through DSH's plugin command, then opt in to publishing reports to its configured Doctor report directory.
+The version command should print `0.4.0`. The profile path above works in Bash and PowerShell for the standard Web profile. For Desktop, select its actual profile directory (commonly `$HOME/.dsh/profiles/desktop`); custom DSH homes may differ. `--profile` accepts a **directory**, not the nickname `web` or `desktop`. CLI diagnosis needs no running DSH or host plugin installation. Installation downloads npm packages; subsequent default diagnosis works offline.
+
+With a minimized error log:
+
+```sh
+dsh-doctor diagnose --profile "$HOME/.dsh/profiles/web" --log ./minimal-error.log
+```
+
+No log? `check` inspects the same supported metadata conditions. `unknown`, `no-match`, or exit 0 **does not mean the profile is healthy**. Missing layers and unobserved runtime stay unknown.
+
+If global installation is inconvenient, use `npx --yes --package=dsh-composition-doctor@0.4.0 dsh-doctor check --profile "<actual-profile-directory>"` (downloads the package on first use). If the command is unavailable after global install, reopen your terminal or check npm's global bin path. A profile read error means you should verify the selected directory and access; it is not a plugin incompatibility diagnosis.
+
+### See the failure paths in 25 seconds
+
+![Composition Doctor: actual 0.4.0 CLI output connecting a duplicate loader id to bundle and profile insertion paths, with static evidence and unknown runtime](docs/demo/failure-explainer.gif)
+
+This GIF renders actual output from the **published npm 0.4.0 CLI** on a minimized reconstruction of [public case #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889). It is a fixture diagnosis, not a recording of the reporter's DSH runtime. Ordinary patch updates are not counted as duplicate insertions. [Static image and full output](docs/demo/README.md) · [Missing packaged patch example](docs/demo/missing-patch.png) · [Sources and boundaries](docs/failure-cases.md).
+
+**Did it help you find a source? Did it return unknown?** [Share a short usage report](https://github.com/lemonxiny55/dsh-composition-doctor/issues/new?template=usage-report.md) with your next manual check. Reports are opt-in; there is no telemetry. If it helped, a Star or a recommendation to someone with the same problem helps others discover it.
+
+### Optional Web Explorer
+
+The CLI is enough to investigate a failed startup. For the report viewer in a working Web profile:
+
+```sh
+dsh plugin --profile web add dsh-composition-doctor@0.4.0
+```
+
+Restart the host, then use Settings → Composition Doctor. Desktop users should use its normal plugin manager and the npm spec `dsh-composition-doctor@0.4.0`. The viewer reads reports exported with an explicit `--report-dir`; see [report publishing](#reports-and-evidence-boundaries). Installing the host plugin and exporting a report are separate opt-in steps.
 
 Pipes and structured output work too:
 
@@ -162,7 +162,7 @@ Default operations are read-only or isolated under the OS temporary directory. T
 
 ## Support and limitations
 
-On 2026-10-03 the npm `latest` release was checked as `@deepseek-ai/dsh@0.2.0-rc.2`; its public `--version`/`--dump-config` harness was rerun on Windows and Ubuntu 24.04 (WSL) + Node.js 24.19.0. Doctor's full RC gates and packed fresh-install smoke passed locally on Windows/Node 24 and Ubuntu/Node 20.19.5 and 24.19.0. On 2026-10-04, [Hosted CI passed all six Windows/Ubuntu × Node 20/22/24 jobs](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37187050083), including packed fresh-install smoke; the current DSH public harness passed on both Node 24 jobs. Older `0.1.5-rc.1`/`rc.2` goldens are historical evidence; their real-artifact tests skip when artifacts are unavailable. `0.2.1-alpha.1` is expected-compatible/experimental, not verified. Doctor supports Node.js `>=20`. This does not claim that every third-party plugin works, or that plugin runtime/UI registration was observed. [Compatibility detail](docs/compatibility.md) · [RC verification record](docs/release-evidence/0.4.0.md).
+Doctor requires Node.js `>=20`. The release checks cover Windows/Ubuntu × Node 20/22/24, including packed fresh-install smoke; the real DSH `0.2.0-rc.2` public `--version`/`--dump-config` harness passed on the Node 24 jobs. The prior Desktop audit covers installation, report UI/export and disable/re-enable cold starts specifically on **DSH Desktop 0.2.0-rc.2 / Windows 11**. These checks do not verify arbitrary third-party runtimes or every host. On 2026-10-09, DSH npm `latest` remains `0.2.0-rc.2`; `0.2.1-alpha.2` is unverified here. Older `0.1.5-rc.1`/`rc.2` goldens remain historical evidence. [Compatibility detail](docs/compatibility.md) · [Published release evidence](docs/release-evidence/0.4.0-published.md) · [Final-main release CI](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37253989774).
 
 ## Development
 
@@ -173,6 +173,8 @@ pnpm build
 pnpm pack
 pnpm smoke:pack ./dsh-composition-doctor-0.4.0.tgz
 ```
+
+Install checkout dependencies with `pnpm install --frozen-lockfile` before the development commands.
 
 For checkout-only development, run the CLI with `node dist/cli/main.js` after building.
 

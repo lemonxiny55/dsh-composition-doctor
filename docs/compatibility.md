@@ -2,6 +2,10 @@
 
 ## Verified evidence in this repository
 
+0.4.0 is now [published](release-evidence/0.4.0-published.md). The prior Desktop audit and [published announcement](https://github.com/deepseek-ai/deepseek-harness/discussions/8891) record Doctor installation, Settings report display/export, read-only CLI use and disable/re-enable cold-start checks on **DSH Desktop 0.2.0-rc.2 / Windows 11**. These are specific host observations, not verification of arbitrary plugin runtimes. The 2026-10-09 adoption task rechecked the published CLI on inert fixtures; it did not rerun the Desktop lifecycle audit.
+
+As of 2026-10-09, npm DSH `latest` remains `0.2.0-rc.2`; `alpha` is `0.2.1-alpha.2`, which is **unverified here**. The dated RC evidence below is retained with its original scope.
+
 The automated contract covers the checked-in public dump shape, selected metadata, and GET-only Web Settings. Release checks below refer specifically to the public composition CLI; they do not verify third-party plugin runtime behavior or actual Web UI registration on every release.
 
 - Node.js: the current RC is checked locally on Node.js 24.19.0/Windows and 20.19.5/24.19.0 on Ubuntu 24.04 under WSL. Doctor's manifest requires `>=20`. [Hosted CI on 2026-10-04](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37187050083) passed all six Windows/Ubuntu jobs on Node 20.20.2, 22.23.3 and 24.21.0, including packed fresh-install smoke.

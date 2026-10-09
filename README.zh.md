@@ -8,49 +8,49 @@
 
 > **安装或升级插件后，DSH 启动失败了？**
 >
-> 找出涉及哪个 bundle、profile layer 或 override，并看清现有证据究竟能证明什么。
+> Composition Doctor 0.4.0 把支持的故障关联到下一步应检查的 bundle、patch 或 profile layer。即使 Web UI 打不开，也能从终端检查。
 
-```sh
-dsh-doctor diagnose --profile ./web --log dsh-error.log
-```
-
-```text
-Duplicate loader entry id: session-cleaner
-reported-by-log; evidence: static
-
-Cause: session-cleaner is introduced by 2 separate loader declarations.
-
-Path 1: bundle session-cleaner → <PROFILE>/node_modules/session-cleaner/cordis.patch.yml
-  layer: dsh.profile.bundles[0]: session-cleaner → row: session-cleaner
-Path 2: cordis.patch.yml
-  layer: cordis.patch.yml → row: session-cleaner
-
-Unknown: runtime not observed / not-run; final composition unknown.
-Doctor did not modify your profile.
-```
-
-来自最小化的[公开重复加载案例](https://github.com/deepseek-ai/deepseek-harness/discussions/2889)的输出摘录。静态声明能指出冲突路径，不能证明 runtime 已崩溃。[完整 Demo 与来源](docs/failure-cases.md) · [25 秒终端 Demo](scripts/failure-demo.mjs)
-
-**解释故障 · 追踪组合来源 · 预检升级风险**
-
-**只读 · 默认离线 · 不自动修复或安装**
-
-面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）。一条命令把已支持的故障关联到实体、可观察的来源路径和人工下一步；没有证据的部分保留 unknown。
+**只读 · 默认离线诊断 · 不自动修复 · Node.js ≥20**
 
 ## 快速开始
 
-**0.4.0 目前为本地 RC，尚未发布。** 公开的 0.3.0 没有 `diagnose`。请从本 checkout 构建，并安装审查后的本地 tarball：
+[0.4.0 已发布到 npm](https://www.npmjs.com/package/dsh-composition-doctor/v/0.4.0)。安装独立 CLI，再选择你的实际 profile 目录：
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm pack
-pnpm add -g ./dsh-composition-doctor-0.4.0.tgz --ignore-scripts
-dsh-doctor check --profile ./web
-dsh-doctor diagnose --profile ./web --log dsh-error.log
+npm install -g dsh-composition-doctor@0.4.0 --ignore-scripts
+dsh-doctor --version
+dsh-doctor check --profile "$HOME/.dsh/profiles/web"
 ```
 
-`--profile` 接受明确的目录，而不是 DSH profile 昵称。标准 Web profile 可使用 `~/.dsh/profiles/web`，PowerShell 中使用 `$HOME/.dsh/profiles/web`。CLI 不需要 Web UI 正常启动，也不需要安装 host 插件。需要 Web Explorer 时，通过 DSH plugin 命令添加审查后的本地 tarball，再显式导出到插件配置的 Doctor 报告目录。
+版本命令应输出 `0.4.0`。上面的路径适用于 Bash 和 PowerShell 中的标准 Web profile。Desktop 请选它实际使用的目录（通常为 `$HOME/.dsh/profiles/desktop`）；自定义 DSH home 可能不同。`--profile` 接受**目录**，不是 `web` 或 `desktop` 昵称。CLI 诊断不需要 DSH 正在运行，也不需要先安装宿主插件。安装会下载 npm 包，之后默认诊断可以离线运行。
+
+有最小错误日志时：
+
+```sh
+dsh-doctor diagnose --profile "$HOME/.dsh/profiles/web" --log ./minimal-error.log
+```
+
+没有日志时，`check` 检查同一套受支持的元数据条件。`unknown`、`no-match` 或退出码 0 **不代表 profile 健康**；看不到的层和未观察的 runtime 保留 unknown。
+
+不方便全局安装时，可用 `npx --yes --package=dsh-composition-doctor@0.4.0 dsh-doctor check --profile "<实际profile目录>"`（首次使用会下载包）。全局安装后找不到命令，可重开终端或检查 npm global bin 路径。profile 读取错误应先核对目录和访问权限，它不是插件不兼容的诊断。
+
+### 25 秒看懂故障来源
+
+![Composition Doctor 0.4.0 的真实 CLI 输出：重复 loader id 的 bundle 和 profile 两条引入路径，保留 static evidence 和 unknown runtime](docs/demo/failure-explainer.gif)
+
+GIF 将**已发布 npm 0.4.0 CLI 的真实输出**渲染成演示，输入是[公开案例 #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889)的最小重建 fixture；它不是原报告者 DSH runtime 的录像。普通 patch update 不会被当作重复插入。[静态图片与完整输出](docs/demo/README.md) · [包缺少 patch 的示例](docs/demo/missing-patch.png) · [来源与能力边界](docs/failure-cases.md)。
+
+**找到了来源，还是得到 unknown？** 欢迎[提交简短使用反馈](https://github.com/lemonxiny55/dsh-composition-doctor/issues/new?template=usage-report.md)，说明下一步人工检查的结果。反馈完全自愿，没有遥测。如果帮到了你，Star 或推荐给遇到同类问题的人能帮助更多用户发现它。
+
+### 可选 Web Explorer
+
+排查启动失败时，独立 CLI 已经够用。在正常运行的 Web profile 中安装报告查看器：
+
+```sh
+dsh plugin --profile web add dsh-composition-doctor@0.4.0
+```
+
+重启宿主后打开 Settings → Composition Doctor。Desktop 用户走正常插件管理界面，输入 npm spec `dsh-composition-doctor@0.4.0`。查看器读取显式 `--report-dir` 导出的报告，详见[报告发布](#报告与证据边界)。安装宿主插件和导出报告是两个独立的自愿步骤。
 
 支持管道和结构化输出：
 
@@ -162,7 +162,7 @@ dsh-doctor preflight --profile C:\path\to\profile --target-dsh 0.1.5-rc.2
 
 ## 支持范围与限制
 
-2026-10-03 核对的 npm `latest` 为 `@deepseek-ai/dsh@0.2.0-rc.2`，已在 Windows 和 Ubuntu 24.04（WSL）+ Node.js 24.19.0 重新运行公开 `--version`/`--dump-config` harness。Doctor 的完整 RC 门槛与 packed fresh-install smoke 已在本地 Windows/Node 24、Ubuntu/Node 20.19.5 和 24.19.0 通过。2026-10-04，[Hosted CI 的 Windows/Ubuntu × Node 20/22/24 共六个作业全部通过](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37187050083)，包含 packed fresh-install smoke；两个 Node 24 作业均通过当前 DSH 公开 harness。`0.1.5-rc.1`/`rc.2` golden 仅作历史证据，没有 artifact 的测试会 skip。`0.2.1-alpha.1` 属于 expected-compatible/experimental，未验证。Doctor 支持 Node.js `>=20`。此声明不代表任意第三方插件可用，也不代表观察过插件 runtime/UI 注册。[兼容性细节](docs/compatibility.md) · [RC 验证记录](docs/release-evidence/0.4.0.md)。
+Doctor 要求 Node.js `>=20`。发布检查覆盖 Windows/Ubuntu × Node 20/22/24，包含 packed fresh-install smoke；Node 24 作业通过真实 DSH `0.2.0-rc.2` 的公开 `--version`/`--dump-config` harness。此前 Desktop 验收仅覆盖 **DSH Desktop 0.2.0-rc.2 / Windows 11** 的安装、报告 UI/导出和禁用/再启用后的冷启动。它们不代表任意第三方 runtime 或所有宿主均已验证。2026-10-09 核对 DSH npm `latest` 仍为 `0.2.0-rc.2`；`0.2.1-alpha.2` 本轮未验证。`0.1.5-rc.1`/`rc.2` golden 仅作历史证据。[兼容性细节](docs/compatibility.md) · [已发布版本证据](docs/release-evidence/0.4.0-published.md) · [最终 main 发布 CI](https://github.com/lemonxiny55/dsh-composition-doctor/actions/runs/37253989774)。
 
 ## 开发
 
@@ -173,6 +173,8 @@ pnpm build
 pnpm pack
 pnpm smoke:pack ./dsh-composition-doctor-0.4.0.tgz
 ```
+
+运行开发命令前，使用 `pnpm install --frozen-lockfile` 安装 checkout 依赖。
 
 仅在 checkout 开发时，构建完成后使用 `node dist/cli/main.js` 运行 CLI。
 

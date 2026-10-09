@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-10-09T12:04:28.400Z",
+  "version": "0.4.0",
+  "node": "v24.19.0",
+  "platform": "win32",
+  "cliSHA256": "fa6b540edb54662d8860a059b56556bc1ca7d0e6ecf34520d5777b2db5c3c3bb",
+  "kind": "Rendered actual CLI output; minimized public-pattern fixtures; no DSH runtime replay",
+  "scenes": [
+    {
+      "name": "manual-bundle-duplicate",
+      "log": "Error: dsh: plugin tree failed to load: duplicate loader entry id: session-cleaner",
+      "stdout": "DSH Composition Doctor — Failure Explanation\n\nProfile: <PROFILE>; runtime: not-observed\n\nDuplicate loader entry id: session-cleaner\nreported-by-log; evidence: static\n\nCause: session-cleaner is introduced by 2 separate loader declarations. Both inserts use the same id; the final loader outcome is unknown until composition/runtime is observed.\n\nPath 1: bundle session-cleaner → <PROFILE>/node_modules/session-cleaner/cordis.patch.yml\n  layer: dsh.profile.bundles[0]: session-cleaner → row: session-cleaner\nPath 2: cordis.patch.yml\n  layer: cordis.patch.yml → row: session-cleaner\n\nUnknown: runtime not observed / not-run; final composition unknown.\nNext: Review the listed bundle declarations and profile patch. Keep one intended insertion for this id after checking its config; use why row and impact bundle for details.\n\nDoctor did not modify your profile.\n\n",
+      "command": "$ dsh-doctor diagnose --profile <profile-dir> --log <minimal-error.log>",
+      "exitCode": 0,
+      "stdoutSHA256": "e85090c869c1a63eee0f1c013bdd553bca818e288645fe5bb997616267854a42"
+    },
+    {
+      "name": "missing-patch",
+      "log": "Error: dsh: failed to read overlay <PROFILE>/node_modules/dsh-cad/cordis.patch.yml: ENOENT",
+      "stdout": "DSH Composition Doctor — Failure Explanation\n\nProfile: <PROFILE>; runtime: not-observed\n\nBundle patch is unavailable: dsh-cad\nreported-by-log; evidence: static\n\nCause: The declared bundle has missing, invalid or disallowed patch metadata. Its manifest declaration does not supply an observable loader contribution.\n\nPath 1: bundle dsh-cad → <PROFILE>/node_modules/dsh-cad/package.json\n  layer: unknown\n\nUnknown: runtime not observed / not-run; final composition unknown.\nNext: Review the bundle manifest → dsh.bundle.patch and packaged YAML file. Check the publisher tarball contents; do not substitute or execute a file suggested by the log.\n\nDoctor did not modify your profile.\n\n",
+      "command": "$ dsh-doctor diagnose --profile <profile-dir> --log <minimal-error.log>",
+      "exitCode": 0,
+      "stdoutSHA256": "ca3dd30219278f73c2232894e06b36bc2d2c05c904965836b9e1077d1620959d"
+    }
+  ],
+  "negativeControl": "DSH Composition Doctor — Failure Explanation\n\nProfile: <PROFILE>; runtime: not-observed\n\nNo supported failure signature matched. Cause: unknown.\n\nReview the named source paths. If the cause is unknown, verify the profile selection and compare a public dump, why row, snapshot/diff or preflight.\nDoctor did not modify your profile.\n\n"
+}

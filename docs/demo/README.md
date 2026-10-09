@@ -1,5 +1,26 @@
 # Failure Explainer demo assets
 
+## 25-second GitHub demo (2026-10-09)
+
+![Duplicate insertion paths, actual published 0.4.0 CLI output](failure-explainer.gif)
+
+The GIF renders actual CLI output and exact excerpts from the **published npm 0.4.0 package**, on the minimized reconstruction of public DSH case #2889. It is a text animation, not a screen recording of DSH or the original user's runtime. All full stdout remains available; the output keeps static evidence, runtime unknown and the manual next step.
+
+0–3s: symptom; 3–6s: CLI command; 6–16s: two insertion paths; 16–20s: manual next step; 20–25s: trial command. The same GIF serves both README languages; captions and onboarding are bilingual.
+
+[Poster / reduced-motion alternative](failure-explainer-poster.png) · [Duplicate case full image](manual-bundle-duplicate.png) · [Missing patch full image](missing-patch.png) · [Capture metadata and exact stdout](adoption-capture.json) · [Unsupported Web RPC control](unsupported-rpc.txt).
+
+Reproduce after building, or pass the path to an independently installed 0.4.0 CLI:
+
+```sh
+node scripts/capture-adoption-demo.mjs
+python scripts/render-adoption-demo.py --font "<path-to-monospace-font>"
+```
+
+The renderer uses Pillow and defaults to Windows Cascadia Mono. It wraps text for display and selects explicitly labelled excerpts; it does not write diagnosis text. Capture reads only the committed inert fixtures and writes these demo files. Neither script accesses the network, installs packages or runs DSH. The reviewed npm tarball SHA-256 is recorded in [published-status evidence](../release-evidence/0.4.0-published.md). `screenshots.json` declares the two full-output PNGs for compatible marketplace crawlers.
+
+## Earlier two-case terminal assets
+
 Two minimized public cases, captured from the built 0.4.0 CLI on 2026-10-03. These are fixture diagnoses, not transcripts of the original reporters' runtime. Every capture preserves the static / runtime-unknown boundary.
 
 ```text

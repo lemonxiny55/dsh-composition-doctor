@@ -1,0 +1,42 @@
+{
+  "observationDate": "2026-10-09",
+  "capturedAt": "2026-10-09T12:09:46.134Z",
+  "windowConvention": "Complete days ending before observationDate; npm API date windows use UTC",
+  "sources": {
+    "github": {
+      "url": "https://api.github.com/repos/lemonxiny55/dsh-composition-doctor",
+      "status": 403,
+      "error": "HTTP 403"
+    },
+    "npm30d": {
+      "url": "https://api.npmjs.org/downloads/point/2026-09-09:2026-10-08/dsh-composition-doctor",
+      "status": 200
+    },
+    "registry": {
+      "url": "https://registry.npmjs.org/dsh-composition-doctor",
+      "status": 200
+    },
+    "npm7d": {
+      "url": "https://api.npmjs.org/downloads/point/2026-10-02:2026-10-08/dsh-composition-doctor",
+      "status": 200
+    }
+  },
+  "npm": {
+    "npm30d": {
+      "downloads": 1963,
+      "start": "2026-09-09",
+      "end": "2026-10-08"
+    },
+    "release": {
+      "latest": "0.4.0",
+      "published040": "2026-10-05T02:24:26.834Z",
+      "integrity040": "sha512-ZBvRDSfEKPWRru9xv29UWh84emcHjv4xQeGdvUsZNMJkSapiAhEDUb49bJGz3xS7BDSOtZ0Ue6OgepdH+dLhqw=="
+    },
+    "npm7d": {
+      "downloads": 514,
+      "start": "2026-10-02",
+      "end": "2026-10-08"
+    }
+  },
+  "github": null
+}

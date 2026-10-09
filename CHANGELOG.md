@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 — Failure Explainer (unreleased RC)
+## 0.4.0 — Failure Explainer (2026-10-05)
 
 - Add `diagnose` and the small `check` alias: human-first explanations connect supported symptoms to entities, independent source paths, evidence boundaries and manual next steps.
 - Add a pure failure matcher/explainer shared with additive report/Web data. Default diagnosis inspects selected static metadata without running DSH, importing plugins or accessing the network. Public composed evidence remains opt-in.
@@ -11,7 +11,7 @@
 - Correct snapshot producer version metadata and preserve graph identities for same-layer duplicate declarations.
 - Fix the installed Unix CLI launcher and an identical-artifact concurrent cache publication race exposed by Windows RC verification.
 
-No npm publish, tag, GitHub Release or Discussion has been created.
+Published on [npm](https://www.npmjs.com/package/dsh-composition-doctor/v/0.4.0), with [GitHub Release v0.4.0](https://github.com/lemonxiny55/dsh-composition-doctor/releases/tag/v0.4.0) and [DSH Discussion #8891](https://github.com/deepseek-ai/deepseek-harness/discussions/8891). [Published-status evidence](docs/release-evidence/0.4.0-published.md) supersedes earlier RC publication notes. No new npm version is part of the adoption documentation update.
 
 ## 0.3.0
 
