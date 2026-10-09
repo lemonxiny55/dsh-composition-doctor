@@ -36,9 +36,9 @@ If global installation is inconvenient, use `npx --yes --package=dsh-composition
 
 ### See the failure paths in 25 seconds
 
-![Composition Doctor: actual 0.4.0 CLI output connecting a duplicate loader id to bundle and profile insertion paths, with static evidence and unknown runtime](docs/demo/failure-explainer.gif)
+![Composition Doctor 0.4.0 in real DSH Desktop: expand a fixture failure explanation and inspect bundle/profile source nodes](docs/demo/failure-explainer.gif)
 
-This GIF renders actual output from the **published npm 0.4.0 CLI** on a minimized reconstruction of [public case #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889). It is a fixture diagnosis, not a recording of the reporter's DSH runtime. Ordinary patch updates are not counted as duplicate insertions. [Static image and full output](docs/demo/README.md) · [Missing packaged patch example](docs/demo/missing-patch.png) · [Sources and boundaries](docs/failure-cases.md).
+This GIF captures the **real DSH Desktop 0.2.0-rc.2 interface running Doctor 0.4.0**. It opens an existing sanitized fixture report reconstructed from [public case #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889), expands its explanation and selects the two source rows. Reading pauses are edited; the original reporter's runtime is not shown. Ordinary patch updates are not counted as duplicate insertions. [Static image and full output](docs/demo/README.md) · [Missing packaged patch output](docs/demo/missing-patch.txt) · [Sources and boundaries](docs/failure-cases.md).
 
 **Did it help you find a source? Did it return unknown?** [Share a short usage report](https://github.com/lemonxiny55/dsh-composition-doctor/issues/new?template=usage-report.md) with your next manual check. Reports are opt-in; there is no telemetry. If it helped, a Star or a recommendation to someone with the same problem helps others discover it.
 
@@ -50,7 +50,7 @@ The CLI is enough to investigate a failed startup. For the report viewer in a wo
 dsh plugin --profile web add dsh-composition-doctor@0.4.0
 ```
 
-Restart the host, then use Settings → Composition Doctor. Desktop users should use its normal plugin manager and the npm spec `dsh-composition-doctor@0.4.0`. The viewer reads reports exported with an explicit `--report-dir`; see [report publishing](#reports-and-evidence-boundaries). Installing the host plugin and exporting a report are separate opt-in steps.
+Restart the host, then open its Composition Doctor settings tab (Desktop: Settings → Built-in plugins → DSH Composition Doctor). Desktop users should use its normal plugin manager and the npm spec `dsh-composition-doctor@0.4.0`. The viewer reads reports exported with an explicit `--report-dir`; see [report publishing](#reports-and-evidence-boundaries). Installing the host plugin and exporting a report are separate opt-in steps.
 
 Pipes and structured output work too:
 

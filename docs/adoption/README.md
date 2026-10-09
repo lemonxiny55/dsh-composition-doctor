@@ -9,14 +9,14 @@
 | [渠道与竞品分析](channels.md) | 当前收录、同步链路、重复投稿核查与合作对象 |
 | [市场 PR 草稿](marketplace-pr.md) | 已有 Awesome 条目的单文件更新补丁；dsh-plugin.org 编辑请求 |
 | [中英文社区内容](community.md) | 官方 #8891 补充、相关讨论技术回复、合作邀请，均未发送 |
-| [25 秒 Demo](../demo/failure-explainer.gif) | 已发布 npm CLI 在公开模式 fixture 上的真实输出渲染；[证据](../demo/adoption-capture.json) |
+| [25 秒 Demo](../demo/failure-explainer.gif) | 真实 DSH Desktop 0.2.0-rc.2 中查看 Doctor 0.4.0 fixture 报告；[录制证据](../demo/desktop-capture.json) |
 | [公开指标账本](metrics.md) | 下载、使用案例、Star、Issue、社区引用分开记录，无遥测 |
 | [14 天执行计划](plan-14-days.md) | 2026-10-09 至 10-22，审核通过后执行外部动作 |
 | [发布状态核验](../release-evidence/0.4.0-published.md) | registry、artifact SHA-256、既有发布/宿主验收记录的有限范围 |
 
 ## 待审核的具体动作
 
-1. 推送本地分支 `codex/adoption-distribution-040` 的 README、CHANGELOG、文档、Demo、`screenshots.json`、使用反馈模板与三个离线/公开指标脚本；创建自有仓库文档 PR。版本号和产品实现不变。
+1. 推送本地分支 `codex/adoption-distribution-040` 的 README、CHANGELOG、文档、Demo、`screenshots.json`、使用反馈模板与CLI 输出捕获、桌面 GIF 组装和公开指标脚本；创建自有仓库文档 PR。版本号和产品实现不变。
 2. 将 GitHub Description 改为：`Explain DSH plugin failures: duplicate inserts, missing patches, peer mismatches and their source paths. Read-only CLI; offline by default.` 可保留现有四个 topics，另加 `cli`、`diagnostics`、`developer-tools`。这项仓库设置尚未修改。
 3. 向 Awesome 提交 [现有条目更新 PR](marketplace-pr.md)。先让新 README/GIF 可从公共 main 访问，再提交。再次查询同项目开放 PR；已有相同更新时直接延续，避免重复。
 4. 在 [官方 #8891](https://github.com/deepseek-ai/deepseek-harness/discussions/8891) 补充 [中英文技术示例](community.md)，不另开重复发布帖。dsh-plugin.org 走现有收录的编辑反馈；不重填新插件提交表。
@@ -26,7 +26,7 @@
 
 仓库起点为 `b8b25bf0ea54bcf4455066d40d49f8cffab18a74`，与远程 main 一致。npm `latest` 是 0.4.0，DSH `latest` 是 0.2.0-rc.2，alpha 已变为 0.2.1-alpha.2；alpha 没有本轮验证，不能纳入兼容承诺。
 
-Demo 使用 registry 下载的 0.4.0 tarball，SHA-256 与此前发布记录一致；在独立目录安装，禁用 lifecycle scripts。两个 fixture 诊断 exit 0；未支持的 Web RPC 日志对健康 fixture 返回 `no-match / unknown`。没有复制真实用户 profile，没有运行 DSH 或第三方插件 runtime。
+Demo 使用 registry 下载的 0.4.0 tarball，SHA-256 与此前发布记录一致；在独立目录安装，禁用 lifecycle scripts。两个 fixture 诊断 exit 0；未支持的 Web RPC 日志对健康 fixture 返回 `no-match / unknown`。CLI fixture 捕获没有运行 DSH 或第三方 runtime。桌面 GIF 另于 10-09 操作真实 Desktop 的既有 Doctor 页面，展示 10-04 生成的脱敏 fixture 报告；没有改 profile 或插件开关，没有将 fixture 诊断当作当前真实故障的诊断。
 
 原始网页、市场 checkout、npm cache 和安装目录放在忽略的 `rc-artifacts/adoption/`，不进入交付补丁。公开文档只保留来源、必要摘要和可审核的输出。指标脚本 GitHub API 被限流时写 `null` 和错误，不把未知写成 0。
 

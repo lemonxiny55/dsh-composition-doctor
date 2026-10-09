@@ -10,9 +10,9 @@
 
 补一个可以复现的 25 秒示例：当同一个 `session-cleaner` 同时来自 bundle 的 patch 和 profile 的手写 `insert` 时，Failure Explainer 会把两条引入路径放在一起，方便决定下一步检查哪份声明。
 
-![0.4.0 CLI 故障来源演示](https://raw.githubusercontent.com/lemonxiny55/dsh-composition-doctor/main/docs/demo/failure-explainer.gif)
+![0.4.0 真实 DSH Desktop 故障来源演示](https://raw.githubusercontent.com/lemonxiny55/dsh-composition-doctor/main/docs/demo/failure-explainer.gif)
 
-这是已发布 npm 0.4.0 CLI 在公开案例 [#2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889) 的最小重建 fixture 上的实际输出渲染，**不是原用户 runtime 录像，也没有证明当前 DSH 仍存在该旧 bug**。普通 patch update 不会被算作第二次引入。[完整输出、另一个缺失 patch 示例和复现说明](https://github.com/lemonxiny55/dsh-composition-doctor/tree/main/docs/demo)。
+这是 **DSH Desktop 0.2.0-rc.2 中 Doctor 0.4.0 的真实操作画面**，打开已有脱敏 fixture 报告、展开解释并查看来源 row，停留时长经过剪辑。fixture 重建自公开案例 [#2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889)；未展示原用户 runtime，也未证明当前 DSH 仍存在该旧 bug。普通 patch update 不会被算作第二次引入。[完整输出、另一个缺失 patch 示例和复现说明](https://github.com/lemonxiny55/dsh-composition-doctor/tree/main/docs/demo)。
 
 不必先让 Web UI 启动，也不必先向故障 profile 安装宿主插件：
 
@@ -32,9 +32,9 @@ Node.js ≥20。标准 Web profile 通常为 `$HOME/.dsh/profiles/web`，Desktop
 
 Here is a reproducible 25-second example: when `session-cleaner` is inserted by both a bundle patch and a manual profile patch, the Failure Explainer puts the two source paths together so you can inspect the right declarations next.
 
-![Actual 0.4.0 CLI source-path demo](https://raw.githubusercontent.com/lemonxiny55/dsh-composition-doctor/main/docs/demo/failure-explainer.gif)
+![Real DSH Desktop 0.4.0 source-path demo](https://raw.githubusercontent.com/lemonxiny55/dsh-composition-doctor/main/docs/demo/failure-explainer.gif)
 
-This renders actual output from the published npm 0.4.0 CLI on a minimized reconstruction of [public case #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889). It is not the reporter's runtime recording or evidence that the historical host bug persists today. Ordinary patch updates are not counted as duplicate insertions. [Full stdout, a missing-patch example, and reproduction instructions](https://github.com/lemonxiny55/dsh-composition-doctor/tree/main/docs/demo).
+This captures the real **DSH Desktop 0.2.0-rc.2 interface running Doctor 0.4.0**, opening an existing sanitized fixture report, expanding its explanation and inspecting its source rows. Reading pauses are edited. The fixture reconstructs [public case #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889); the original reporter's runtime is not shown, and this does not prove the historical host bug persists today. Ordinary patch updates are not counted as duplicate insertions. [Full stdout, a missing-patch example, and reproduction instructions](https://github.com/lemonxiny55/dsh-composition-doctor/tree/main/docs/demo).
 
 You can try the standalone CLI while the Web UI is down:
 

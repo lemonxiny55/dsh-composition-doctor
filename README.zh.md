@@ -36,9 +36,9 @@ dsh-doctor diagnose --profile "$HOME/.dsh/profiles/web" --log ./minimal-error.lo
 
 ### 25 秒看懂故障来源
 
-![Composition Doctor 0.4.0 的真实 CLI 输出：重复 loader id 的 bundle 和 profile 两条引入路径，保留 static evidence 和 unknown runtime](docs/demo/failure-explainer.gif)
+![真实 DSH Desktop 中的 Composition Doctor 0.4.0：展开 fixture 故障解释并查看 bundle/profile 来源节点](docs/demo/failure-explainer.gif)
 
-GIF 将**已发布 npm 0.4.0 CLI 的真实输出**渲染成演示，输入是[公开案例 #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889)的最小重建 fixture；它不是原报告者 DSH runtime 的录像。普通 patch update 不会被当作重复插入。[静态图片与完整输出](docs/demo/README.md) · [包缺少 patch 的示例](docs/demo/missing-patch.png) · [来源与能力边界](docs/failure-cases.md)。
+GIF 截取了 **DSH Desktop 0.2.0-rc.2 中运行 Doctor 0.4.0 的真实界面**：打开已有的脱敏 fixture 报告、展开解释，再选择两条来源 row。报告重建自[公开案例 #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889)，停留时长经过剪辑；未展示原报告者的 runtime。普通 patch update 不会被当作重复插入。[静态图片与完整输出](docs/demo/README.md) · [包缺少 patch 的输出](docs/demo/missing-patch.txt) · [来源与能力边界](docs/failure-cases.md)。
 
 **找到了来源，还是得到 unknown？** 欢迎[提交简短使用反馈](https://github.com/lemonxiny55/dsh-composition-doctor/issues/new?template=usage-report.md)，说明下一步人工检查的结果。反馈完全自愿，没有遥测。如果帮到了你，Star 或推荐给遇到同类问题的人能帮助更多用户发现它。
 
@@ -50,7 +50,7 @@ GIF 将**已发布 npm 0.4.0 CLI 的真实输出**渲染成演示，输入是[�
 dsh plugin --profile web add dsh-composition-doctor@0.4.0
 ```
 
-重启宿主后打开 Settings → Composition Doctor。Desktop 用户走正常插件管理界面，输入 npm spec `dsh-composition-doctor@0.4.0`。查看器读取显式 `--report-dir` 导出的报告，详见[报告发布](#报告与证据边界)。安装宿主插件和导出报告是两个独立的自愿步骤。
+重启宿主后打开 Composition Doctor 设置标签（Desktop：设置 → 内置插件 → DSH Composition Doctor）。Desktop 用户走正常插件管理界面，输入 npm spec `dsh-composition-doctor@0.4.0`。查看器读取显式 `--report-dir` 导出的报告，详见[报告发布](#报告与证据边界)。安装宿主插件和导出报告是两个独立的自愿步骤。
 
 支持管道和结构化输出：
 

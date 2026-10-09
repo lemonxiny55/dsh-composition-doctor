@@ -1,0 +1,110 @@
+{
+  "capturedDate": "2026-10-09",
+  "host": "DeepSeek Harness Desktop",
+  "hostFileVersion": "0.2.0-rc.2",
+  "doctorVersionShownByPluginManager": "0.4.0",
+  "captureMethod": "@oai/sky get_window_state, native Desktop UI captures",
+  "presentation": "Six real interaction states with edited reading pauses; not continuous video. Settings-dialog crop only; captions outside application pixels.",
+  "report": {
+    "file": "desktop-report.json",
+    "generatedAt": "2026-10-04T08:10:46.743Z",
+    "sha256": "8c69da0b99d92cc01e255b849ec0cc900b218f87de03de952cbbfc757352c3d9",
+    "source": "Existing sanitized manual-bundle-duplicate fixture report from the 0.4.0 Desktop smoke, verified against the currently configured report.json. No new diagnosis claimed on capture date.",
+    "evidence": "static",
+    "runtimeObserved": false,
+    "publicPattern": "https://github.com/deepseek-ai/deepseek-harness/discussions/2889"
+  },
+  "privacy": "Only Settings dialog retained. Account/session/workspace sidebar cropped out. Report profile path already sanitized as <PROFILE>. No profile configuration or plugin toggles changed.",
+  "frames": [
+    {
+      "name": "01-report",
+      "capturedAt": "2026-10-09T12:30:36.836Z",
+      "crop": {
+        "left": 240,
+        "top": 58,
+        "width": 802,
+        "height": 704
+      },
+      "source": "sky.get_window_state actual DSH Desktop window",
+      "file": "desktop-frames/01-report.png",
+      "sha256": "257dbda9179e79e2143105c9a182c23263b91774fa4f70bf853a7103b21521bf",
+      "caption": "1 / 6  打开报告 / Open the saved report",
+      "durationMs": 3000
+    },
+    {
+      "name": "02-explanation",
+      "capturedAt": "2026-10-09T12:31:22.638Z",
+      "crop": {
+        "left": 240,
+        "top": 58,
+        "width": 802,
+        "height": 704
+      },
+      "source": "sky.get_window_state actual DSH Desktop window",
+      "file": "desktop-frames/02-explanation.png",
+      "sha256": "b9c4d991a96000d1e03deb41e55663b4e3db825c70e5f7f0d355aa4aef3584a8",
+      "caption": "2 / 6  展开故障解释 / Expand failure explanation",
+      "durationMs": 4000
+    },
+    {
+      "name": "03-next-step",
+      "capturedAt": "2026-10-09T12:31:37.927Z",
+      "crop": {
+        "left": 240,
+        "top": 58,
+        "width": 802,
+        "height": 704
+      },
+      "source": "sky.get_window_state actual DSH Desktop window",
+      "file": "desktop-frames/03-next-step.png",
+      "sha256": "e009785b320e2360cba560fb5564c25010b243dcac7f0211b69683fcc57cedbb",
+      "caption": "3 / 6  证据与手动下一步 / Evidence and manual next step",
+      "durationMs": 6000
+    },
+    {
+      "name": "04-explorer",
+      "capturedAt": "2026-10-09T12:31:49.405Z",
+      "crop": {
+        "left": 240,
+        "top": 58,
+        "width": 802,
+        "height": 704
+      },
+      "source": "sky.get_window_state actual DSH Desktop window",
+      "file": "desktop-frames/04-explorer.png",
+      "sha256": "60e377086c48902466fe311ad7a9d74d0ef340687d9a36d2a9d75f5c7d846507",
+      "caption": "4 / 6  查找来源节点 / Explore source nodes",
+      "durationMs": 4000
+    },
+    {
+      "name": "05-bundle-row",
+      "capturedAt": "2026-10-09T12:32:31.783Z",
+      "crop": {
+        "left": 240,
+        "top": 58,
+        "width": 802,
+        "height": 704
+      },
+      "source": "sky.get_window_state actual DSH Desktop window",
+      "file": "desktop-frames/05-bundle-row.png",
+      "sha256": "4a648728b072f56c4031fd8737821619b488965bf4cae84b7de980fd22436d1c",
+      "caption": "5 / 6  Bundle 插入 / Inspect the bundle insertion",
+      "durationMs": 4000
+    },
+    {
+      "name": "06-profile-row",
+      "capturedAt": "2026-10-09T12:32:50.805Z",
+      "crop": {
+        "left": 240,
+        "top": 58,
+        "width": 802,
+        "height": 704
+      },
+      "source": "sky.get_window_state actual DSH Desktop window",
+      "file": "desktop-frames/06-profile-row.png",
+      "sha256": "d4380d46419f0810310cc0b5baa4cb2fd47c3c015fc7cb2ba65911b715fac939",
+      "caption": "6 / 6  Profile 插入 / Inspect the profile insertion",
+      "durationMs": 4000
+    }
+  ]
+}

@@ -1,23 +1,43 @@
 # Failure Explainer demo assets
 
-## 25-second GitHub demo (2026-10-09)
+## 25-second real DSH Desktop demo (2026-10-09)
 
-![Duplicate insertion paths, actual published 0.4.0 CLI output](failure-explainer.gif)
+![Doctor 0.4.0 in real DSH Desktop: failure explanation and both source rows](failure-explainer.gif)
 
-The GIF renders actual CLI output and exact excerpts from the **published npm 0.4.0 package**, on the minimized reconstruction of public DSH case #2889. It is a text animation, not a screen recording of DSH or the original user's runtime. All full stdout remains available; the output keeps static evidence, runtime unknown and the manual next step.
+This GIF contains **real UI interaction captures from DSH Desktop 0.2.0-rc.2 on Windows, with Doctor 0.4.0 enabled**. It opens the existing saved report, expands its failure explanation, scrolls to the manual next step, then selects the bundle and profile insertion rows in Composition Explorer. The six actual UI states have edited reading pauses; this is an edited screenshot sequence, not continuous video. Application pixels are preserved in the source PNGs; captions are outside the UI, and GIF encoding quantizes colors.
 
-0–3s: symptom; 3–6s: CLI command; 6–16s: two insertion paths; 16–20s: manual next step; 20–25s: trial command. The same GIF serves both README languages; captions and onboarding are bilingual.
+这是实际 DSH Desktop 的操作画面，六个界面状态按阅读需要剪为 25 秒。只裁掉设置对话框外的私人侧栏，字幕在原界面外。报告是 10-04 宿主验收时已有的脱敏 fixture，并非 10-09 新发现的真实用户故障；不声称原用户恢复成功或当前 DSH 仍存在历史 bug。
 
-[Poster / reduced-motion alternative](failure-explainer-poster.png) · [Duplicate case full image](manual-bundle-duplicate.png) · [Missing patch full image](missing-patch.png) · [Capture metadata and exact stdout](adoption-capture.json) · [Unsupported Web RPC control](unsupported-rpc.txt).
+The report reconstructs the insertion pattern from [public case #2889](https://github.com/deepseek-ai/deepseek-harness/discussions/2889). It was generated on **2026-10-04**, with profile paths already sanitized as `<PROFILE>`, and reused for this capture. Its hash matches the currently configured report file and the earlier Desktop smoke backup. The report retains **static evidence, runtime not-observed, unknown final composition, and manual remediation**. No profile settings or plugin toggles changed during capture. Ordinary patch updates are not duplicate insertions. This demonstrates the real report viewer, not the original reporter's runtime or an automatic repair.
 
-Reproduce after building, or pass the path to an independently installed 0.4.0 CLI:
+| Time | Real Desktop interaction |
+|---|---|
+| 0–3s | Saved report overview |
+| 3–7s | Expanded Failure Explanation |
+| 7–13s | Unknowns and manual next step |
+| 13–17s | Composition Explorer source nodes |
+| 17–21s | Bundle row: packaged `cordis.patch.yml` source |
+| 21–25s | Profile row: local `cordis.patch.yml` source |
+
+[Poster / reduced-motion alternative](failure-explainer-poster.png) · [Desktop explanation screenshot](desktop-explanation.png) · [Desktop source screenshot](desktop-source.png) · [Native capture metadata and per-frame hashes](desktop-capture.json) · [Displayed report JSON](desktop-report.json).
+
+The explanation's long preformatted path line overflows in the existing UI. The two subsequent row-detail captures show each source field in full; the GIF does not redraw that line or invent a different layout. The complete report is linked above.
+
+`screenshots.json` declares two genuine Desktop screenshots for compatible marketplace crawlers. To reassemble this GIF from the committed native captures (Pillow and a Chinese/Latin font required):
 
 ```sh
-node scripts/capture-adoption-demo.mjs
-python scripts/render-adoption-demo.py --font "<path-to-monospace-font>"
+python scripts/assemble-desktop-demo.py --font "<path-to-font>"
 ```
 
-The renderer uses Pillow and defaults to Windows Cascadia Mono. It wraps text for display and selects explicitly labelled excerpts; it does not write diagnosis text. Capture reads only the committed inert fixtures and writes these demo files. Neither script accesses the network, installs packages or runs DSH. The reviewed npm tarball SHA-256 is recorded in [published-status evidence](../release-evidence/0.4.0-published.md). `screenshots.json` declares the two full-output PNGs for compatible marketplace crawlers.
+For a new native capture: use a working Desktop with Doctor 0.4.0, open Settings → Built-in plugins → DSH Composition Doctor, load an explicitly published safe fixture report, expand the explanation and select its source rows. Capture only the Settings dialog; record report/version/date and image hashes. Never upload personal account, session, workspace or unsanitized profile information. CLI generation and viewer configuration are separate opt-in actions; see the README's report-publishing instructions.
+
+The independent **published npm 0.4.0 CLI verification** remains separate: [Capture metadata and exact stdout](adoption-capture.json) · [Unsupported Web RPC control](unsupported-rpc.txt) · [Published tarball evidence](../release-evidence/0.4.0-published.md). To repeat those inert CLI checks, pass an independently installed 0.4.0 CLI path:
+
+```sh
+node scripts/capture-adoption-demo.mjs "<path-to-dist/cli/main.js>"
+```
+
+That capture does not run DSH or third-party runtimes. A healthy fixture plus the unsupported Web RPC signature returns no-match/unknown; it does not rule out configuration or runtime faults.
 
 ## Earlier two-case terminal assets
 

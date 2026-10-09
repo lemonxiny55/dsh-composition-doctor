@@ -1,0 +1,2 @@
+# Keep the audited report bytes stable for the capture's SHA-256 on Windows.
+docs/demo/desktop-report.json text eol=lf
