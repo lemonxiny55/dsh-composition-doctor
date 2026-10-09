@@ -1,6 +1,6 @@
 # Adoption asset validation — 2026-10-09
 
-本轮没有产品实现改动，没有新 npm 版本、外部帖子、第三方 PR 或推送。
+资产准备阶段没有产品实现改动或新 npm 版本。10-09 owner 批准后，已推送 main、提交市场 PR 并发布两条相关社区回复；外部执行结果见 [执行记录](execution-2026-10-09.md)。
 
 ## 实际执行的检查
 
@@ -18,6 +18,6 @@ GIF 于 10-09 通过真实 Desktop 0.2.0-rc.2 的公开设置页面截取，Doct
 
 ## 尚待外部核验
 
-新资产推到公共 main 后，才可以检查 GitHub 实际 README 显示、市场 screenshot crawler 和同步结果。当前本地链接存在不等于这些公共 URL 已上线。第三方 PR 与帖子继续保留为待审核草稿。
+公共 main 的中英文 README、screenshots.json 与 GIF 已回读确认 HTTP 200 且内容一致，资产提交的远程 CI 通过。市场 screenshot crawler、条目合并和下游同步仍需在实际发生后核查；市场 PR 尚未合并。候选合作邀请仍未发送。
 
-原 npm 0.4.0 artifact 含旧版 README 状态文字，本轮不重新发布同版本、不发布新版本。仓库 About Description/topic 设置也尚未修改；拟采用文本见 [审核包](README.md)。
+原 npm 0.4.0 artifact 含旧版 README 状态文字，本轮不重新发布同版本、不发布新版本。仓库 About Description/topics 已按 [审核包](README.md) 更新并回读确认。

@@ -1,6 +1,8 @@
 # 值得提交的市场更新
 
-## P0 — Awesome 现有条目更新（未提交）
+## P0 — Awesome 现有条目更新（已提交，待审核）
+
+实际 PR：[awesome-dsh-plugin/awesome-dsh-plugin #6965](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/6965)，10-09 经 owner 批准提交。以下保留审核正文；检查、合并和同步状态见 [执行记录](execution-2026-10-09.md)。
 
 目标仓库：[awesome-dsh-plugin/awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)。参考起点 `17ae18761c0f8b1107f92714f50e633929d24c2e`。
 
